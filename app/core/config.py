@@ -14,6 +14,8 @@ class Settings(BaseSettings):
     api_v1_prefix: str = "/api/v1"
     cors_origins: str = "*"
 
+    database_url: str = "postgresql+psycopg://senecapp:senecapp@localhost:5432/senecapp"
+
     @property
     def cors_origins_list(self) -> list[str]:
         return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]
