@@ -29,7 +29,7 @@ docker compose down -v     # stop and wipe the database volume
 ### Option B: API on your machine, database in Docker
 
 ```bash
-docker compose up -d db          # start only PostgreSQL
+docker compose up -d db          # start only PostgreSQL (host port 5433)
 
 # 1. Create and activate a virtual environment
 python -m venv .venv
