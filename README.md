@@ -7,7 +7,7 @@ REST API and analytics pipeline for **SENECApp**, the student-groups app for Uni
 | Area | Highlights |
 |---|---|
 | **Auth** | Firebase ID-token verification, restricted to verified `@uniandes.edu.co` accounts; dev tokens for local work |
-| **Groups & Explore** | Search with filters, profiles, saves, join/leave, create/edit groups |
+| **Groups & Explore** | Search with filters, profiles, saves, join/leave, create/edit groups. New groups are proposals reviewed by admins (pending → approved/rejected) |
 | **Events** | Listing, creation, **QR + GPS check-in** (sensor feature) |
 | **Recommendations** | **Learning group recommender** (smart feature) and **"free right now" event suggestions** based on schedule, time and location (context-aware) |
 | **Messaging** | Group chat, in-app notifications, push via Firebase Cloud Messaging |
@@ -97,7 +97,7 @@ The apps sign in with Firebase and send `Authorization: Bearer <firebase-id-toke
 | `dev` (default) | `dev:<email>`, for local development, Swagger and tests. Rejected at startup when `APP_ENV=production` |
 | `firebase` | Real Firebase ID tokens. Set `FIREBASE_PROJECT_ID` |
 
-Administrators (`ADMIN_EMAILS`) can use `/admin/*` and `/analytics/bq/*`.
+Administrators (`ADMIN_EMAILS`) can use `/admin/*` and `/analytics/bq/*`, including the group review queue: `GET /admin/groups/pending`, `POST /admin/groups/{id}/approve`, `POST /admin/groups/{id}/reject`. See [docs/frontend-integration.md](docs/frontend-integration.md#creating-a-group-create-rso-review-flow).
 
 ## Push notifications
 

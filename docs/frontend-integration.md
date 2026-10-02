@@ -50,12 +50,40 @@ The group recommender scores interest match, schedule fit, proximity and popular
 - **Firebase Cloud Messaging**: push notifications. Register the device token with `POST /me/devices` after sign-in and whenever it refreshes, and send `DELETE /me/devices/{token}` on sign-out. The push `data` payload includes `notification_id`, `type`, `group_id` and `event_id`.
 - **Feature connected to the backend (other than auth)**: recommendations, free-now suggestions, groups, events, chat and notifications are all served by this API.
 
+## Creating a group (Create RSO): review flow
+
+Student-created groups are **proposals**: Uniandes Student Affairs reviews them before they go public.
+
+1. **Submit** with `POST /groups`. The minimal payload matches the form:
+
+   ```json
+   {
+     "name": "Ciberseguridad Uniandes",
+     "category": "technology",
+     "description": "CTF practice, security talks and disclosure workshops.",
+     "contact_email": "ciber@uniandes.edu.co"
+   }
+   ```
+
+   - `category` is a slug from `GET /categories`. You can send `category_id` instead, but **exactly one** of the two (422 otherwise, also for unknown values).
+   - `tag_ids` (0–8 interest ids) is optional. Without it, up to 3 tags are inferred from the name and description (interests of that category that are mentioned), or the category's most popular interest.
+   - Optional fields still accepted: `color`, `image_url`, `founded_year`, `instagram_url`, `website_url`, `meeting_building_id`.
+   - 201 returns the group (`GroupDetail`) with `review_status: "pending"` and `my_role: "admin"`. Show "Proposal Submitted!".
+   - 409 if the name is taken; 422 for an invalid `contact_email`.
+2. **While pending**, the group is only visible to its creator: it appears in `GET /me/groups` and `GET /groups/{id}`, but not in search, recommendations or event listings. Nobody can join it (409), and it can't publish events (409). Use `review_status` to show a "Pending review" badge.
+3. **Review** (platform admins): `GET /admin/groups/pending`, then `POST /admin/groups/{id}/approve` or `POST /admin/groups/{id}/reject` with `{ "reason": "..." }`.
+4. **Outcome:** the creator gets an in-app notification of type `group_review`, with `data.review_status` set to `approved` or `rejected`.
+   - **Approved:** the group becomes public, and students whose interests match its tags get a `group_recommendation` notification.
+   - **Rejected:** the group stays hidden, and the creator sees `review_status: "rejected"` with `rejection_reason` in `GET /me/groups`.
+
+New fields on every `GroupSummary` / `GroupDetail`: `review_status` (`pending` | `approved` | `rejected`) and `rejection_reason` (null unless rejected).
+
 ## Other endpoints
 
 | Screen | Endpoints |
 |---|---|
 | Events | `GET /events?mine=true`, `GET /events/{id}` |
-| Create group / event | `POST /groups`, `PATCH /groups/{id}`, `POST /groups/{id}/events`, `PATCH /events/{id}` |
+| Create group / event | `POST /groups` (pending until approved, see above), `PATCH /groups/{id}`, `POST /groups/{id}/events` (approved groups only), `PATCH /events/{id}` |
 | Chat | `GET /groups/{id}/messages?before_id=`, `POST /groups/{id}/messages` |
 | Notifications | `GET /me/notifications`, `POST /me/notifications/{id}/open`, `POST /me/notifications/{id}/dismiss` |
 | Profile | `GET/PATCH /me`, `GET /me/groups`, `GET /me/saved-groups`, `GET/PUT /me/schedule` |
@@ -70,4 +98,4 @@ Send `screen_view`, `app_error` and `join_form_opened` to `POST /analytics/event
 | Token (`AUTH_PROVIDER=dev`) | Who |
 |---|---|
 | `dev:s.arango@uniandes.edu.co` | Sofía Arango, the prototype's student: member of Tennis, Emprendedores and AI & ML; admin of AI & ML |
-| `dev:admin@uniandes.edu.co` | Platform admin: business questions, releases, jobs |
+| `dev:admin@uniandes.edu.co` | Platform admin: business questions, releases, jobs, group review |

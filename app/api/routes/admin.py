@@ -6,9 +6,10 @@ from sqlalchemy import func, select
 
 from app.api.deps import AdminUser, DbSession
 from app.jobs.registry import JOBS, execute_job
-from app.models import JobRun, RecommenderModel, ReengagementCase, Release
+from app.models import JobRun, RecommenderModel, ReengagementCase, Release, StudentGroup
 from app.schemas.admin import JobInfo, JobRunRead, RecommenderModelRead, ReleaseIn, ReleaseRead
-from app.services import reengagement
+from app.schemas.group import GroupReviewResult, PendingGroupRead, RejectRequest
+from app.services import group_review, reengagement
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
@@ -71,3 +72,34 @@ def list_reengagement_cases(_admin: AdminUser, db: DbSession) -> list[dict[str, 
 def list_recommender_models(_admin: AdminUser, db: DbSession) -> list[RecommenderModelRead]:
     models = db.scalars(select(RecommenderModel).order_by(RecommenderModel.trained_at.desc()))
     return [RecommenderModelRead.model_validate(m) for m in models]
+
+
+@router.get("/groups/pending")
+def list_pending_groups(_admin: AdminUser, db: DbSession) -> list[PendingGroupRead]:
+    """Group proposals waiting for review, oldest first."""
+    return group_review.list_pending(db)
+
+
+@router.post("/groups/{group_id}/approve")
+def approve_group(group_id: int, admin: AdminUser, db: DbSession) -> GroupReviewResult:
+    """Publish a pending group. Its creator is notified, and so are students whose
+    interests match its tags. 409 if the group is not pending."""
+    return _review_result(group_review.approve(db, admin, group_id))
+
+
+@router.post("/groups/{group_id}/reject")
+def reject_group(
+    group_id: int, body: RejectRequest, admin: AdminUser, db: DbSession
+) -> GroupReviewResult:
+    """Reject a pending group with a reason shown to its creator. 409 if not pending."""
+    return _review_result(group_review.reject(db, admin, group_id, body.reason))
+
+
+def _review_result(group: StudentGroup) -> GroupReviewResult:
+    return GroupReviewResult(
+        id=group.id,
+        name=group.name,
+        review_status=group.review_status.value,
+        rejection_reason=group.rejection_reason,
+        reviewed_at=group.reviewed_at,
+    )

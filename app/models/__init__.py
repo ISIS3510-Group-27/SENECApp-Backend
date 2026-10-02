@@ -15,6 +15,7 @@ from app.models.group import (
     Membership,
     MembershipRole,
     MembershipStatus,
+    ReviewStatus,
     StudentGroup,
 )
 from app.models.interest import Category, Interest, UserInterest
@@ -73,6 +74,7 @@ __all__ = [
     "ReengagementCase",
     "ReengagementStatus",
     "Release",
+    "ReviewStatus",
     "ScheduleBlock",
     "SeedRun",
     "StudentGroup",

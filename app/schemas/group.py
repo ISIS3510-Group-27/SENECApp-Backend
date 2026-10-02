@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime
 from enum import StrEnum
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field, HttpUrl
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, HttpUrl, model_validator
 
 from app.models import EntryPoint
 from app.schemas.catalog import BuildingRead, CategoryRead, TagRead
@@ -55,6 +55,9 @@ class GroupSummary(BaseModel):
     image_url: str | None
     verified: bool
     is_active: bool
+    # "pending" | "approved" | "rejected". Only the creator ever sees non-approved groups.
+    review_status: str
+    rejection_reason: str | None
     member_count: int
     tags: list[TagRead]
     next_event: NextEvent | None
@@ -74,10 +77,17 @@ class GroupDetail(GroupSummary):
 
 
 class GroupCreate(BaseModel):
+    """A group proposal. It is created as ``pending`` until Student Affairs approves it.
+
+    Give the category either as ``category_id`` or as ``category`` (its slug), not both.
+    Without ``tag_ids``, up to 3 tags are inferred from the name and description.
+    """
+
     model_config = ConfigDict(extra="forbid")
 
     name: str = Field(min_length=3, max_length=150)
-    category_id: int
+    category_id: int | None = None
+    category: str | None = Field(default=None, min_length=1, max_length=50)
     description: str = Field(min_length=20, max_length=2000)
     color: str | None = Field(default=None, pattern=r"^#[0-9A-Fa-f]{6}$")
     image_url: HttpUrl | None = None
@@ -86,7 +96,13 @@ class GroupCreate(BaseModel):
     instagram_url: HttpUrl | None = None
     website_url: HttpUrl | None = None
     meeting_building_id: int | None = None
-    tag_ids: list[int] = Field(min_length=1, max_length=8)
+    tag_ids: list[int] = Field(default_factory=list, max_length=8)
+
+    @model_validator(mode="after")
+    def exactly_one_category(self) -> "GroupCreate":
+        if (self.category_id is None) == (self.category is None):
+            raise ValueError("Send exactly one of category_id or category")
+        return self
 
 
 class GroupUpdate(BaseModel):
@@ -124,3 +140,36 @@ class MembershipRead(BaseModel):
     status: str
     joined_at: datetime
     entry_point: str | None
+
+
+class GroupCreator(BaseModel):
+    id: int
+    full_name: str
+    email: str
+
+
+class PendingGroupRead(BaseModel):
+    """A group proposal waiting for review (platform admins)."""
+
+    id: int
+    name: str
+    category: CategoryRead
+    description: str
+    contact_email: str | None
+    tags: list[TagRead]
+    creator: GroupCreator | None
+    created_at: datetime
+
+
+class GroupReviewResult(BaseModel):
+    id: int
+    name: str
+    review_status: str
+    rejection_reason: str | None
+    reviewed_at: datetime
+
+
+class RejectRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+
+    reason: str = Field(min_length=1, max_length=500)
