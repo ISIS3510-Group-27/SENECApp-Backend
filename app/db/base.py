@@ -15,3 +15,6 @@ class Base(DeclarativeBase):
     """Base class for all ORM models."""
 
     metadata = MetaData(naming_convention=NAMING_CONVENTION)
+    # Fetch server-generated values (ids, created_at...) with RETURNING on insert, so they
+    # are available after commit even though sessions don't expire objects on commit.
+    __mapper_args__ = {"eager_defaults": True}

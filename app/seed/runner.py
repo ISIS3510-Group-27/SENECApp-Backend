@@ -8,6 +8,7 @@ from app.core.config import get_settings
 from app.db.base import Base
 from app.db.session import SessionLocal
 from app.seed.reference import seed_reference
+from app.seed.simulation import seed_simulation
 
 logger = logging.getLogger(__name__)
 
@@ -15,10 +16,15 @@ logger = logging.getLogger(__name__)
 class SeedMode(StrEnum):
     NONE = "none"
     REFERENCE = "reference"
+    FULL = "full"
 
 
 def run_seed(mode: SeedMode, reset: bool = False) -> None:
-    """Seed the database in a single transaction (all or nothing)."""
+    """Seed the database.
+
+    Reset and reference data run in a single transaction (all or nothing). The
+    simulation (``full``) runs afterwards, once: a ``seed_runs`` row marks it done.
+    """
     with SessionLocal.begin() as session:
         if reset:
             _reset_database(session)
@@ -26,6 +32,10 @@ def run_seed(mode: SeedMode, reset: bool = False) -> None:
             logger.info("SEED_MODE=none: skipping seed")
             return
         seed_reference(session)
+
+    if mode is SeedMode.FULL:
+        with SessionLocal() as session:
+            seed_simulation(session)
 
 
 def _reset_database(session: Session) -> None:
