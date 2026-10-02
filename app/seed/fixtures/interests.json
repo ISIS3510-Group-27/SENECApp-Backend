@@ -1,0 +1,43 @@
+[
+  { "name": "Tennis", "category": "sports" },
+  { "name": "Football", "category": "sports" },
+  { "name": "Basketball", "category": "sports" },
+  { "name": "Running", "category": "sports" },
+  { "name": "Climbing", "category": "sports" },
+  { "name": "Swimming", "category": "sports" },
+
+  { "name": "Startups", "category": "business" },
+  { "name": "Finance", "category": "business" },
+  { "name": "Marketing", "category": "business" },
+  { "name": "Consulting", "category": "business" },
+  { "name": "Networking", "category": "business" },
+
+  { "name": "AI/ML", "category": "technology" },
+  { "name": "Software Development", "category": "technology" },
+  { "name": "Data Science", "category": "technology" },
+  { "name": "Robotics", "category": "technology" },
+  { "name": "Cybersecurity", "category": "technology" },
+  { "name": "Video Games", "category": "technology" },
+
+  { "name": "Theater", "category": "arts" },
+  { "name": "Photography", "category": "arts" },
+  { "name": "Music", "category": "arts" },
+  { "name": "Dance", "category": "arts" },
+  { "name": "Film", "category": "arts" },
+
+  { "name": "Travel", "category": "travel" },
+  { "name": "Hiking", "category": "travel" },
+  { "name": "Culture", "category": "travel" },
+
+  { "name": "Cars", "category": "cars" },
+  { "name": "Motorsport", "category": "cars" },
+
+  { "name": "Volunteering", "category": "social" },
+  { "name": "Board Games", "category": "social" },
+  { "name": "Debate", "category": "social" },
+  { "name": "Coffee & Conversation", "category": "social" },
+
+  { "name": "Languages", "category": "international" },
+  { "name": "Exchange Programs", "category": "international" },
+  { "name": "Model UN", "category": "international" }
+]

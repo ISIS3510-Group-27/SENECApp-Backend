@@ -1,0 +1,14 @@
+[
+  { "code": "ML", "name": "Edificio Mario Laserna", "latitude": 4.602960, "longitude": -74.064850 },
+  { "code": "SD", "name": "Edificio Julio Mario Santo Domingo", "latitude": 4.604590, "longitude": -74.065830 },
+  { "code": "W", "name": "Edificio W", "latitude": 4.602060, "longitude": -74.065230 },
+  { "code": "AU", "name": "Edificio Aulas", "latitude": 4.602650, "longitude": -74.066120 },
+  { "code": "LL", "name": "Edificio Lleras", "latitude": 4.601500, "longitude": -74.066200 },
+  { "code": "B", "name": "Bloque B", "latitude": 4.601100, "longitude": -74.065600 },
+  { "code": "G", "name": "Bloque G", "latitude": 4.601900, "longitude": -74.066600 },
+  { "code": "C", "name": "Bloque C", "latitude": 4.603300, "longitude": -74.066300 },
+  { "code": "CD", "name": "Centro Deportivo", "latitude": 4.603600, "longitude": -74.064200 },
+  { "code": "BG", "name": "Biblioteca General", "latitude": 4.602400, "longitude": -74.065900 },
+  { "code": "EP", "name": "Entrada Principal", "latitude": 4.601800, "longitude": -74.066400 },
+  { "code": "P6", "name": "Parqueadero P6", "latitude": 4.604900, "longitude": -74.064600 }
+]

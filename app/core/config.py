@@ -1,4 +1,5 @@
 from functools import lru_cache
+from typing import Literal
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -15,6 +16,9 @@ class Settings(BaseSettings):
     cors_origins: str = "*"
 
     database_url: str = "postgresql+psycopg://senecapp:senecapp@localhost:5433/senecapp"
+
+    # What the seed command loads on startup: "none" or "reference" (catalog data).
+    seed_mode: Literal["none", "reference"] = "none"
 
     @property
     def cors_origins_list(self) -> list[str]:
