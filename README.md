@@ -53,6 +53,7 @@ uvicorn app.main:app --reload
 ## Development
 
 ```bash
+docker compose up -d db   # tests use a separate "senecapp_test" database on the same server
 pytest          # run tests
 ruff check .    # lint
 ruff format .   # format
@@ -78,6 +79,23 @@ docker compose exec api python -m app.seed --reset   # same, inside the running 
 
 > Campus building names and coordinates are approximate and only meant for demo purposes.
 
+### Authentication
+
+The mobile apps sign in with **Firebase Authentication** and send the Firebase ID token on every request:
+
+```
+Authorization: Bearer <firebase-id-token>
+```
+
+The backend verifies the token (signature, expiry, audience and issuer) against Google's public certificates, so only the Firebase **project ID** is needed, not a service-account key. Only verified emails from `ALLOWED_EMAIL_DOMAINS` (default `uniandes.edu.co`) are accepted. The first authenticated request creates the user, or links an existing user with the same email.
+
+| `AUTH_PROVIDER` | Token accepted |
+|---|---|
+| `dev` (default) | `dev:<email>`, e.g. `Bearer dev:s.arango@uniandes.edu.co`. No signature, for local development, Swagger and tests. Rejected at startup when `APP_ENV=production` |
+| `firebase` | Real Firebase ID tokens. Set `FIREBASE_PROJECT_ID` |
+
+In Swagger UI, click **Authorize** and paste `dev:<your-email>` to try the protected endpoints.
+
 ### Database migrations
 
 ```bash
@@ -92,10 +110,13 @@ New models must be imported in `app/models/__init__.py` so autogenerate can dete
 
 ```
 app/
-  api/          HTTP routers
+  api/          HTTP routers and dependencies (DB session, current user)
+  auth/         ID-token verification (Firebase / dev)
   core/         configuration and cross-cutting concerns
   db/           SQLAlchemy base and session management
   models/       ORM models
+  schemas/      request/response models
+  services/     business logic used by the routers
   seed/         seed command and JSON fixtures
   main.py       application factory / entry point
 migrations/     Alembic migration scripts
