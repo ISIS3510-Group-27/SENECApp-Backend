@@ -1,0 +1,10 @@
+[
+  { "slug": "sports", "label": "Sports", "icon": "fitness_center" },
+  { "slug": "business", "label": "Business", "icon": "trending_up" },
+  { "slug": "technology", "label": "Technology", "icon": "menu_book" },
+  { "slug": "arts", "label": "Arts", "icon": "music_note" },
+  { "slug": "travel", "label": "Travel", "icon": "flight" },
+  { "slug": "cars", "label": "Cars", "icon": "directions_car" },
+  { "slug": "social", "label": "Social", "icon": "local_cafe" },
+  { "slug": "international", "label": "International", "icon": "public" }
+]
