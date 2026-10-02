@@ -1,0 +1,199 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SENECApp Analytics</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  :root {
+    --bg: #f6f7f9; --surface: #ffffff; --text: #171a21; --muted: #5b6475;
+    --border: #e3e6ec; --accent: #a50104; --accent-soft: #fdecec; --bar: #1d3557;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0e1117; --surface: #171a21; --text: #f0e2e7; --muted: #8b94b0;
+      --border: #262c38; --accent: #ff5a5f; --accent-soft: #2a1618; --bar: #7aa2f7;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+         font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  header { padding: 24px 16px 8px; max-width: 1200px; margin: 0 auto; }
+  h1 { margin: 0 0 4px; font-size: 22px; }
+  .sub { color: var(--muted); margin: 0; }
+  form { display: flex; flex-wrap: wrap; gap: 8px; margin: 16px 0 0; }
+  input, select, button { font: inherit; padding: 8px 10px; border-radius: 8px;
+                          border: 1px solid var(--border); background: var(--surface); color: var(--text); }
+  input { flex: 1 1 260px; }
+  button { background: var(--accent); color: #fff; border: 0; cursor: pointer; }
+  main { max-width: 1200px; margin: 0 auto; padding: 8px 16px 48px; }
+  h2 { font-size: 15px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted);
+       margin: 28px 0 10px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 14px; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+          padding: 16px; min-width: 0; }
+  .card h3 { margin: 0 0 8px; font-size: 14px; font-weight: 600; }
+  .tag { color: var(--accent); font-weight: 700; margin-right: 6px; }
+  .answer { background: var(--accent-soft); border-radius: 8px; padding: 10px 12px; margin: 0 0 12px; }
+  .chart { position: relative; height: 220px; }
+  details { margin-top: 10px; }
+  summary { cursor: pointer; color: var(--muted); font-size: 13px; }
+  .table-wrap { overflow-x: auto; max-height: 280px; }
+  table { border-collapse: collapse; width: 100%; font-size: 12px; margin-top: 6px; }
+  th, td { text-align: left; padding: 4px 6px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+  .error { color: var(--accent); }
+</style>
+</head>
+<body>
+<header>
+  <h1>SENECApp business questions</h1>
+  <p class="sub">Answers computed live from the backend's analytics data.</p>
+  <form id="controls">
+    <input id="token" placeholder="Admin bearer token, e.g. dev:admin@uniandes.edu.co" autocomplete="off">
+    <select id="days">
+      <option value="30">Last 30 days</option>
+      <option value="90" selected>Last 90 days</option>
+      <option value="180">Last 180 days</option>
+    </select>
+    <select id="app">
+      <option value="">Both apps</option>
+      <option value="flutter">Flutter</option>
+      <option value="kotlin">Kotlin</option>
+    </select>
+    <button type="submit">Load</button>
+  </form>
+</header>
+<main id="content"></main>
+<script>
+const API = "/api/v1/analytics/bq";
+// Which series to chart for each question: [path to rows, label field, value field(s)].
+const CHARTS = {
+  "1": ["by_screen", "screen", ["errors_per_1000_views"]],
+  "11": ["by_screen", "screen", ["avg_ms"]],
+  "2": ["join_rate_by_feature_bucket.interest_match", "bucket", ["join_rate"]],
+  "3": ["by_hour", "hour", ["interaction_rate"]],
+  "12": ["filters", "filter", ["followed_by_open", "followed_by_join"]],
+  "13": ["categories", "category", ["explore_views", "saves"]],
+  "4": ["fields", "field", ["correlation"]],
+  "6": ["entry_points", "entry_point", ["joins"]],
+  "7": ["steps", "step", ["abandonment_rate"]],
+  "8": ["types", "type", ["open_rate", "dismiss_rate"]],
+  "5": ["interests", "interest", ["search_to_join_ratio"]],
+  "9": ["interests", "interest", ["opted_in_students", "active_groups"]],
+  "10": ["arms", "arm", ["return_to_attendance_rate"]],
+  "14": ["releases", r => `${r.app} ${r.version}`, ["error_rate_change"]],
+};
+const TYPE_TITLES = {1: "Type 1 · Telemetry", 2: "Type 2 · Features", 3: "Type 3 · Product",
+                     4: "Type 4 · Demand", 5: "Type 5 · Experiments & releases"};
+
+try { document.getElementById("token").value = localStorage.getItem("senecapp-token") || ""; } catch {}
+
+document.getElementById("controls").addEventListener("submit", e => { e.preventDefault(); load(); });
+
+async function api(path) {
+  const token = document.getElementById("token").value.trim();
+  const res = await fetch(path, { headers: { Authorization: `Bearer ${token}` } });
+  if (!res.ok) throw new Error(`${res.status}: ${(await res.json()).detail || res.statusText}`);
+  return res.json();
+}
+
+async function load() {
+  const content = document.getElementById("content");
+  try { localStorage.setItem("senecapp-token", document.getElementById("token").value.trim()); } catch {}
+  content.innerHTML = "<p>Loading…</p>";
+  let questions;
+  try { questions = await api(API); }
+  catch (err) { content.innerHTML = `<p class="error">${err.message}</p>`; return; }
+
+  content.innerHTML = "";
+  const byType = {};
+  questions.forEach(q => (byType[q.type] ||= []).push(q));
+  for (const type of Object.keys(byType).sort()) {
+    const h2 = document.createElement("h2");
+    h2.textContent = TYPE_TITLES[type];
+    const grid = document.createElement("div");
+    grid.className = "grid";
+    content.append(h2, grid);
+    byType[type].forEach(q => grid.append(renderCard(q)));
+  }
+}
+
+function renderCard(q) {
+  const card = document.createElement("section");
+  card.className = "card";
+  card.innerHTML = `<h3><span class="tag">BQ${q.id}</span>${q.question}</h3><p class="answer">Loading…</p>`;
+  const days = document.getElementById("days").value;
+  const app = document.getElementById("app").value;
+  const query = new URLSearchParams({ days, ...(app ? { app } : {}) });
+  api(`${API}/${q.id}?${query}`).then(result => {
+    card.querySelector(".answer").textContent = result.answer;
+    const [path, label, values] = CHARTS[q.id];
+    const rows = path.split(".").reduce((obj, key) => obj?.[key], result.data) || [];
+    if (rows.length) {
+      const wrap = document.createElement("div");
+      wrap.className = "chart";
+      const canvas = document.createElement("canvas");
+      wrap.append(canvas);
+      card.append(wrap);
+      drawChart(canvas, rows.slice(0, 12), label, values);
+    }
+    card.append(renderTables(result.data));
+  }).catch(err => {
+    card.querySelector(".answer").innerHTML = `<span class="error">${err.message}</span>`;
+  });
+  return card;
+}
+
+function drawChart(canvas, rows, label, values) {
+  const styles = getComputedStyle(document.documentElement);
+  const colors = [styles.getPropertyValue("--bar").trim(), styles.getPropertyValue("--accent").trim()];
+  const text = styles.getPropertyValue("--muted").trim();
+  new Chart(canvas, {
+    type: "bar",
+    data: {
+      labels: rows.map(r => typeof label === "function" ? label(r) : r[label]),
+      datasets: values.map((field, i) => ({
+        label: field.replaceAll("_", " "), data: rows.map(r => r[field]),
+        backgroundColor: colors[i % colors.length], borderRadius: 4,
+      })),
+    },
+    options: {
+      maintainAspectRatio: false,
+      plugins: { legend: { display: values.length > 1, labels: { color: text } } },
+      scales: { x: { ticks: { color: text, maxRotation: 45, autoSkip: false, font: { size: 10 } } },
+                y: { ticks: { color: text }, beginAtZero: true } },
+    },
+  });
+}
+
+function renderTables(data) {
+  const details = document.createElement("details");
+  details.innerHTML = "<summary>Data</summary>";
+  for (const [name, value] of Object.entries(data)) {
+    const rows = Array.isArray(value) ? value : null;
+    const block = document.createElement("div");
+    block.className = "table-wrap";
+    if (rows && rows.length && typeof rows[0] === "object") {
+      const cols = Object.keys(rows[0]);
+      block.innerHTML = `<table><caption style="text-align:left">${name}</caption><thead><tr>${
+        cols.map(c => `<th>${c}</th>`).join("")}</tr></thead><tbody>${
+        rows.map(r => `<tr>${cols.map(c => `<td>${format(r[c])}</td>`).join("")}</tr>`).join("")
+      }</tbody></table>`;
+    } else {
+      block.innerHTML = `<table><caption style="text-align:left">${name}</caption><tbody><tr><td>${
+        format(value)}</td></tr></tbody></table>`;
+    }
+    details.append(block);
+  }
+  return details;
+}
+
+function format(value) {
+  if (value === null || value === undefined) return "–";
+  if (typeof value === "object") return JSON.stringify(value);
+  return String(value).replace(/[<>&]/g, ch => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;" }[ch]));
+}
+</script>
+</body>
+</html>

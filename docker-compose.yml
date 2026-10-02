@@ -26,9 +26,13 @@ services:
         required: false
     environment:
       DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-senecapp}:${POSTGRES_PASSWORD:-senecapp}@db:5432/${POSTGRES_DB:-senecapp}
-      SEED_MODE: ${SEED_MODE:-reference}
+      SEED_MODE: ${SEED_MODE:-full}
+      SCHEDULER_ENABLED: ${SCHEDULER_ENABLED:-true}
     ports:
       - "${API_PORT:-8000}:8000"
+    volumes:
+      # Firebase service-account key for push notifications (optional, git-ignored).
+      - ./secrets:/code/secrets:ro
     depends_on:
       db:
         condition: service_healthy

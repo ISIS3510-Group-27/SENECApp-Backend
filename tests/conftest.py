@@ -1,20 +1,24 @@
 import os
 from collections.abc import Generator
 
-import pytest
-from alembic import command
-from alembic.config import Config
-from fastapi.testclient import TestClient
-from sqlalchemy import Engine, create_engine, text
-from sqlalchemy.engine import URL, make_url
-from sqlalchemy.exc import OperationalError
-from sqlalchemy.orm import Session
+# Tests must not depend on a developer's .env: environment variables take precedence
+# over it, so pin the settings that change behavior before the app is imported.
+os.environ.update({"AUTH_PROVIDER": "dev", "PUSH_PROVIDER": "none", "SCHEDULER_ENABLED": "false"})
 
-from app.auth.verifiers import DevTokenVerifier, get_token_verifier
-from app.core.config import Settings, get_settings
-from app.db.session import get_db
-from app.main import app
-from app.seed.reference import seed_reference
+import pytest  # noqa: E402
+from alembic import command  # noqa: E402
+from alembic.config import Config  # noqa: E402
+from fastapi.testclient import TestClient  # noqa: E402
+from sqlalchemy import Engine, create_engine, text  # noqa: E402
+from sqlalchemy.engine import URL, make_url  # noqa: E402
+from sqlalchemy.exc import OperationalError  # noqa: E402
+from sqlalchemy.orm import Session  # noqa: E402
+
+from app.auth.verifiers import DevTokenVerifier, get_token_verifier  # noqa: E402
+from app.core.config import Settings, get_settings  # noqa: E402
+from app.db.session import get_db  # noqa: E402
+from app.main import app  # noqa: E402
+from app.seed.reference import seed_reference  # noqa: E402
 
 TEST_DATABASE_URL = os.environ.get(
     "TEST_DATABASE_URL", "postgresql+psycopg://senecapp:senecapp@localhost:5433/senecapp_test"

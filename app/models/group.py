@@ -87,12 +87,24 @@ class MembershipStatus(enum.StrEnum):
     LEFT = "left"
 
 
+class EntryPoint(enum.StrEnum):
+    """Where the student came from when they joined (business question BQ6)."""
+
+    RECOMMENDATION = "recommendation"
+    SEARCH = "search"
+    EXPLORE = "explore"
+    NOTIFICATION = "notification"
+    EVENT = "event"
+    DIRECT = "direct"
+
+
 class Membership(Base):
     __tablename__ = "memberships"
     __table_args__ = (
         UniqueConstraint("user_id", "group_id"),
         enum_check("role", MembershipRole),
         enum_check("status", MembershipStatus),
+        enum_check("entry_point", EntryPoint),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -110,6 +122,8 @@ class Membership(Base):
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
     left_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # Null for founders/admins created with the group.
+    entry_point: Mapped[EntryPoint | None] = mapped_column(str_enum(EntryPoint))
 
     user: Mapped[User] = relationship(back_populates="memberships")
     group: Mapped[StudentGroup] = relationship(back_populates="memberships")
