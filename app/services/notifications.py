@@ -135,7 +135,7 @@ def notify_new_event(
     )
 
 
-def notify_new_group(db: Session, group: StudentGroup, creator_id: int) -> None:
+def notify_new_group(db: Session, group: StudentGroup, creator_id: int | None) -> None:
     """Tell students whose interests match the new group's tags."""
     tag_ids = [tag.id for tag in group.tags]
     recipients = db.scalars(

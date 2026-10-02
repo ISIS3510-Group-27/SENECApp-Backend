@@ -20,6 +20,7 @@ from app.models import (
     ReengagementArm,
     ReengagementCase,
     ReengagementStatus,
+    ReviewStatus,
     StudentGroup,
 )
 from app.services import messages as message_service
@@ -85,7 +86,11 @@ def detect_declines(db: Session, now: datetime | None = None) -> list[Reengageme
     )
     group_ids = [
         gid
-        for gid in db.scalars(select(StudentGroup.id).where(StudentGroup.is_active))
+        for gid in db.scalars(
+            select(StudentGroup.id).where(
+                StudentGroup.is_active, StudentGroup.review_status == ReviewStatus.APPROVED
+            )
+        )
         if gid not in open_cases
     ]
     series_by_group = weekly_attendance(db, group_ids, now)

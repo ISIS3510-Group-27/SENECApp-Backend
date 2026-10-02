@@ -17,6 +17,7 @@ from app.models import (
     Event,
     Membership,
     MembershipStatus,
+    ReviewStatus,
     StudentGroup,
     User,
 )
@@ -48,8 +49,10 @@ def list_events(
     limit: int,
     offset: int,
 ) -> tuple[list[EventRead], int]:
-    """Upcoming (by default) non-cancelled events, soonest first."""
-    stmt = select(Event.id).where(~Event.is_cancelled)
+    """Upcoming (by default) non-cancelled events of approved groups, soonest first."""
+    stmt = select(Event.id).where(
+        ~Event.is_cancelled, Event.group.has(StudentGroup.review_status == ReviewStatus.APPROVED)
+    )
     stmt = stmt.where(Event.ends_at >= (starts_after or datetime.now(UTC)))
     if starts_before:
         stmt = stmt.where(Event.starts_at < starts_before)
@@ -158,6 +161,12 @@ def create_event(
     if group is None:
         raise NotFoundError("Group not found")
     require_group_admin(db, user, group_id)
+    if group.review_status != ReviewStatus.APPROVED:
+        raise ConflictError(
+            "This group is pending review; it can publish events once it is approved"
+            if group.review_status == ReviewStatus.PENDING
+            else "This group was not approved and cannot publish events"
+        )
     if not group.is_active:
         raise ConflictError("Inactive groups cannot publish events")
     _check_building(db, data.building_id)

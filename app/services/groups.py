@@ -1,5 +1,7 @@
 """Student groups: Explore search, profiles, saves and memberships."""
 
+import re
+import unicodedata
 from collections.abc import Sequence
 from datetime import UTC, datetime
 from typing import Any
@@ -20,8 +22,10 @@ from app.models import (
     Membership,
     MembershipRole,
     MembershipStatus,
+    ReviewStatus,
     StudentGroup,
     User,
+    UserInterest,
 )
 from app.schemas.catalog import BuildingRead, CategoryRead, TagRead
 from app.schemas.event import EventSummary
@@ -35,7 +39,6 @@ from app.schemas.group import (
     JoinRequest,
     NextEvent,
 )
-from app.services import notifications
 from app.services.analytics import track
 from app.services.errors import (
     ConflictError,
@@ -118,7 +121,7 @@ def search_groups(
 
 
 def _apply_filters(stmt: Select, filters: GroupFilters, now: datetime) -> Select:
-    stmt = stmt.where(StudentGroup.is_active)
+    stmt = stmt.where(StudentGroup.is_active, StudentGroup.review_status == ReviewStatus.APPROVED)
     if filters.q:
         pattern = f"%{filters.q.strip()}%"
         tag_match = exists().where(
@@ -242,6 +245,8 @@ def _summary(
         image_url=group.image_url,
         verified=group.verified,
         is_active=group.is_active,
+        review_status=group.review_status.value,
+        rejection_reason=group.rejection_reason,
         member_count=member_count,
         tags=[TagRead.model_validate(t) for t in sorted(group.tags, key=lambda t: t.name)],
         next_event=(
@@ -268,7 +273,7 @@ def get_group_detail(
         .where(StudentGroup.id == group_id)
         .options(selectinload(StudentGroup.meeting_building))
     )
-    if group is None:
+    if group is None or not is_visible_to(db, group, user):
         raise NotFoundError("Group not found")
     summary = build_summaries(db, user, [group_id])[0]
     upcoming = db.scalars(
@@ -280,22 +285,24 @@ def get_group_detail(
     ).all()
     membership = _active_membership(db, user.id, group_id)
 
-    track(
-        db,
-        "group_viewed",
-        user_id=user.id,
-        context=context,
-        screen="group_detail",
-        properties={
-            "group_id": group_id,
-            "category": summary.category.slug,
-            "entry_point": (entry_point or EntryPoint.DIRECT).value,
-            "rec_request_id": rec_request_id,
-            "is_member": summary.is_member,
-            "profile": profile_completeness(group, has_upcoming_event=bool(upcoming)),
-        },
-    )
-    db.commit()
+    # Creators checking their own proposal are not Explore traffic: don't skew BQ4/6/7/13.
+    if group.review_status == ReviewStatus.APPROVED:
+        track(
+            db,
+            "group_viewed",
+            user_id=user.id,
+            context=context,
+            screen="group_detail",
+            properties={
+                "group_id": group_id,
+                "category": summary.category.slug,
+                "entry_point": (entry_point or EntryPoint.DIRECT).value,
+                "rec_request_id": rec_request_id,
+                "is_member": summary.is_member,
+                "profile": profile_completeness(group, has_upcoming_event=bool(upcoming)),
+            },
+        )
+        db.commit()
 
     return GroupDetail(
         **summary.model_dump(),
@@ -358,6 +365,8 @@ def save_group(
 ) -> None:
     """Bookmark a group. ``source`` is the screen it was saved from (e.g. "explore", BQ13)."""
     group = _get_group(db, group_id)
+    if not is_visible_to(db, group, user):
+        raise NotFoundError("Group not found")
     if db.get(GroupSave, (user.id, group_id)) is None:
         db.add(GroupSave(user_id=user.id, group_id=group_id))
         track(
@@ -393,6 +402,8 @@ def join_group(
 ) -> Membership:
     """Submit the join form. Idempotent: joining a group you belong to is a no-op."""
     group = _get_group(db, group_id)
+    if group.review_status != ReviewStatus.APPROVED:
+        raise ConflictError("This group is not accepting members until it is approved")
     if not group.is_active:
         raise ConflictError("This group is not accepting members")
 
@@ -449,15 +460,21 @@ def leave_group(db: Session, user: User, group_id: int, context: ClientContext |
 def create_group(
     db: Session, user: User, data: GroupCreate, context: ClientContext | None
 ) -> StudentGroup:
+    """Submit a group proposal. It stays ``pending`` (invisible to other students) until a
+    platform admin approves it; the creator becomes its admin right away."""
     if db.scalar(select(StudentGroup.id).where(func.lower(StudentGroup.name) == data.name.lower())):
         raise ConflictError("A group with this name already exists")
-    if db.get(Category, data.category_id) is None:
-        raise ValidationFailedError("Unknown category_id")
+    category = _resolve_category(db, data)
     _check_building(db, data.meeting_building_id)
+    tags = (
+        _load_tags(db, data.tag_ids)
+        if data.tag_ids
+        else fallback_tags(db, category.id, f"{data.name} {data.description}")
+    )
 
     group = StudentGroup(
         name=data.name.strip(),
-        category_id=data.category_id,
+        category_id=category.id,
         description=data.description,
         color=data.color,
         image_url=_url(data.image_url),
@@ -467,7 +484,8 @@ def create_group(
         website_url=_url(data.website_url),
         meeting_building_id=data.meeting_building_id,
         created_by_id=user.id,
-        tags=_load_tags(db, data.tag_ids),
+        tags=tags,
+        review_status=ReviewStatus.PENDING,
     )
     db.add(group)
     db.flush()
@@ -484,10 +502,14 @@ def create_group(
         "group_created",
         user_id=user.id,
         context=context,
-        properties={"group_id": group.id, "category_id": data.category_id, "tag_ids": data.tag_ids},
+        properties={
+            "group_id": group.id,
+            "category_id": category.id,
+            "tag_ids": [tag.id for tag in tags],
+            "tags_inferred": not data.tag_ids,
+        },
     )
     db.commit()
-    notifications.notify_new_group(db, group, creator_id=user.id)
     return group
 
 
@@ -516,6 +538,69 @@ def require_group_member(db: Session, user: User, group_id: int) -> Membership:
     if membership is None:
         raise PermissionDeniedError("Only group members can do this")
     return membership
+
+
+# --- Visibility & tags ---------------------------------------------------------------
+
+MAX_FALLBACK_TAGS = 3
+
+
+def is_visible_to(db: Session, group: StudentGroup, user: User) -> bool:
+    """Approved groups are public; pending/rejected ones only to their creator and admins."""
+    if group.review_status == ReviewStatus.APPROVED:
+        return True
+    if group.created_by_id == user.id:
+        return True
+    membership = _active_membership(db, user.id, group.id)
+    return membership is not None and membership.role == MembershipRole.ADMIN
+
+
+def fallback_tags(db: Session, category_id: int, text: str) -> list[Interest]:
+    """Tags for a group created without ``tag_ids``, so the recommender can match it.
+
+    Interests of the group's category whose names appear in ``text`` (case- and
+    accent-insensitive, whole words), in order of appearance, at most 3. If none
+    appear, the category's interest with the most opted-in students.
+    """
+    interests = db.scalars(
+        select(Interest).where(Interest.category_id == category_id).order_by(Interest.name)
+    ).all()
+    haystack = _normalize(text)
+    found = []
+    for interest in interests:
+        pattern = rf"(?<!\w){re.escape(_normalize(interest.name))}(?!\w)"
+        if match := re.search(pattern, haystack):
+            found.append((match.start(), interest))
+    if found:
+        ordered = sorted(found, key=lambda pair: pair[0])
+        return [interest for _, interest in ordered][:MAX_FALLBACK_TAGS]
+
+    most_popular = db.scalar(
+        select(Interest)
+        .outerjoin(UserInterest, UserInterest.interest_id == Interest.id)
+        .where(Interest.category_id == category_id)
+        .group_by(Interest.id)
+        .order_by(func.count(UserInterest.user_id).desc(), Interest.name)
+        .limit(1)
+    )
+    return [most_popular] if most_popular else []
+
+
+def _normalize(value: str) -> str:
+    stripped = unicodedata.normalize("NFKD", value).encode("ascii", "ignore").decode("ascii")
+    return stripped.lower()
+
+
+def _resolve_category(db: Session, data: GroupCreate) -> Category:
+    if data.category is not None:
+        category = db.scalar(select(Category).where(Category.slug == data.category.strip()))
+        if category is None:
+            raise ValidationFailedError(f"Unknown category {data.category!r}")
+        return category
+    category = db.get(Category, data.category_id)
+    if category is None:
+        raise ValidationFailedError("Unknown category_id")
+    return category
 
 
 # --- Helpers -------------------------------------------------------------------------

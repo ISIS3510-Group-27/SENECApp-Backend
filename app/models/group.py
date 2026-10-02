@@ -27,14 +27,25 @@ if TYPE_CHECKING:
     from app.models.user import User
 
 
+class ReviewStatus(enum.StrEnum):
+    """Moderation state of a group proposal (reviewed by Student Affairs)."""
+
+    PENDING = "pending"
+    APPROVED = "approved"
+    REJECTED = "rejected"
+
+
 class StudentGroup(TimestampMixin, Base):
     """A student organization (RSO).
 
     Optional profile fields (logo, links, meeting place...) are kept as separate
     columns on purpose: analytics correlate their presence with saves and joins.
+
+    Only ``approved`` groups are visible to students other than their creator.
     """
 
     __tablename__ = "student_groups"
+    __table_args__ = (enum_check("review_status", ReviewStatus),)
 
     id: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str] = mapped_column(String(150), unique=True)
@@ -54,6 +65,12 @@ class StudentGroup(TimestampMixin, Base):
         ForeignKey("campus_buildings.id", ondelete="SET NULL")
     )
     created_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
+    # Groups created through the API start as "pending"; catalog groups are "approved".
+    review_status: Mapped[ReviewStatus] = mapped_column(
+        str_enum(ReviewStatus), server_default=ReviewStatus.APPROVED.value
+    )
+    rejection_reason: Mapped[str | None] = mapped_column(Text)
+    reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     category: Mapped[Category] = relationship()
     meeting_building: Mapped[CampusBuilding | None] = relationship()

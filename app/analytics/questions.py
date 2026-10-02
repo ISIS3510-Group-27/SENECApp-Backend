@@ -675,7 +675,7 @@ def bq9_interest_supply_demand(db: Session, p: Params) -> Result:
         """
         WITH active_groups AS (
             SELECT g.id FROM student_groups g
-            WHERE g.is_active AND EXISTS (
+            WHERE g.is_active AND g.review_status = 'approved' AND EXISTS (
                 SELECT 1 FROM events e
                 WHERE e.group_id = g.id AND NOT e.is_cancelled
                   AND e.starts_at >= :until - interval '30 days')
@@ -732,7 +732,12 @@ def bq10_declining_groups(db: Session, p: Params) -> Result:
     for arm in arms.values():
         arm["return_to_attendance_rate"] = _rate(arm["returned"], arm["lapsed"])
 
-    group_ids = list(names)
+    group_ids = [
+        row[0]
+        for row in db.execute(
+            text("SELECT id FROM student_groups WHERE is_active AND review_status = 'approved'")
+        )
+    ]
     live = reengagement.weekly_attendance(db, group_ids, p.until)
     currently_declining = []
     for group_id, series in live.items():

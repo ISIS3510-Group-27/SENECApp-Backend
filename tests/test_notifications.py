@@ -116,7 +116,7 @@ def test_new_event_notifies_members(
     assert notification.push_status == PushStatus.SKIPPED  # member has no devices
 
 
-def test_new_group_notifies_students_with_matching_interests(
+def test_approved_group_notifies_students_with_matching_interests(
     client: TestClient, db_session: Session, push: FakePushSender
 ) -> None:
     climbing = interest_by_name(db_session, "Climbing")
@@ -124,7 +124,7 @@ def test_new_group_notifies_students_with_matching_interests(
     db_session.add(UserInterest(user_id=fan.id, interest_id=climbing.id))
     db_session.commit()
 
-    client.post(
+    created = client.post(
         "/api/v1/groups",
         headers=auth_header("founder@uniandes.edu.co"),
         json={
@@ -133,8 +133,14 @@ def test_new_group_notifies_students_with_matching_interests(
             "description": "Bouldering sessions and outdoor climbing trips every month.",
             "tag_ids": [climbing.id],
         },
+    ).json()
+    pending_notifications = _notifications(db_session, fan.id)
+    client.post(
+        f"/api/v1/admin/groups/{created['id']}/approve",
+        headers=auth_header("admin@uniandes.edu.co"),
     )
 
+    assert pending_notifications == []  # nothing while the proposal is under review
     [notification] = _notifications(db_session, fan.id)
     assert notification.type == NotificationType.GROUP_RECOMMENDATION
     assert "Escalada Uniandes" in notification.body

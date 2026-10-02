@@ -29,6 +29,7 @@ from app.models import (
     RecommendationKind,
     RecommendationLog,
     RecommenderModel,
+    ReviewStatus,
     ScheduleBlock,
     StudentGroup,
     User,
@@ -115,7 +116,7 @@ def load_group_profiles(
     now = now or datetime.now(UTC)
     stmt = (
         select(StudentGroup)
-        .where(StudentGroup.is_active)
+        .where(StudentGroup.is_active, StudentGroup.review_status == ReviewStatus.APPROVED)
         .options(selectinload(StudentGroup.tags), selectinload(StudentGroup.meeting_building))
     )
     if group_ids is not None:
@@ -256,6 +257,7 @@ def free_now_suggestions(
         .where(
             ~Event.is_cancelled,
             Event.building_id.is_not(None),
+            Event.group.has(StudentGroup.review_status == ReviewStatus.APPROVED),
             Event.starts_at >= free.starts_at - IN_PROGRESS_GRACE,
             Event.starts_at <= window_end,
             Event.ends_at > now,

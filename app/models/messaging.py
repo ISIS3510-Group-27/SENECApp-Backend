@@ -55,6 +55,8 @@ class NotificationType(enum.StrEnum):
     GROUP_MESSAGE = "group_message"
     # Re-engagement feature compared in BQ10.
     EVENT_REMINDER = "event_reminder"
+    # Outcome of a group proposal, sent to its creator (not part of BQ8).
+    GROUP_REVIEW = "group_review"
 
 
 class PushStatus(enum.StrEnum):
