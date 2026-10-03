@@ -8,6 +8,7 @@ from app.api.routes import (
     events,
     groups,
     health,
+    insights,
     me,
     messages,
     notifications,
@@ -20,6 +21,7 @@ api_router.include_router(catalog.router)
 api_router.include_router(me.router)
 api_router.include_router(groups.router)
 api_router.include_router(events.router)
+api_router.include_router(insights.router)
 api_router.include_router(messages.router)
 api_router.include_router(notifications.router)
 api_router.include_router(recommendations.router)
