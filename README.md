@@ -30,10 +30,28 @@ Docs for the app teams:
 
 ## Getting started
 
-### Option A: everything in Docker (recommended)
+You need [Docker Desktop](https://www.docker.com/products/docker-desktop/) (running) for both options, and Python 3.12+ for option B.
+
+### 1. Configure `.env`
 
 ```bash
 cp .env.example .env
+```
+
+`.env.example` is set up for the team's Firebase project (`senecapp`). Pick one setup:
+
+| Setup | Values in `.env` | Flutter app |
+|---|---|---|
+| **Local, no Firebase** (quickest) | `AUTH_PROVIDER=dev`, `PUSH_PROVIDER=none` | `flutter run` |
+| **Firebase** | Keep `AUTH_PROVIDER=firebase` and `FIREBASE_PROJECT_ID=senecapp`. For push, put the service-account key at `secrets/firebase-service-account.json` (see [Push notifications](#push-notifications)); without it, set `PUSH_PROVIDER=none` | `flutter run --dart-define=AUTH_MODE=firebase` |
+
+Add your own email to `ADMIN_EMAILS` to use the admin endpoints and the dashboard.
+
+> Keep comments on their own line in `.env`. A value like `AUTH_PROVIDER=dev#firebase` is not cut at the `#`, so the API won't start.
+
+### 2. Option A: everything in Docker (recommended)
+
+```bash
 docker compose up --build
 ```
 
@@ -49,25 +67,31 @@ On startup the API container:
 | http://localhost:8000/dashboard | Business-question dashboard (token `dev:admin@uniandes.edu.co`) |
 | http://localhost:8000/api/v1/health/db | Health check |
 
+The `dev:` tokens only work with `AUTH_PROVIDER=dev`. After changing `.env`, restart the API with `docker compose up -d` (no rebuild needed).
+
 ```bash
+docker compose logs -f api # follow the API logs
 docker compose down        # stop (data is kept in the pgdata volume)
 docker compose down -v     # stop and wipe the database
 ```
 
-### Option B: API on your machine, database in Docker
+### 2. Option B: API on your machine, database in Docker
 
 ```bash
 docker compose up -d db          # PostgreSQL only, on host port 5433
 python -m venv .venv
 source .venv/bin/activate        # Windows (PowerShell): .venv\Scripts\Activate.ps1
 pip install -r requirements-dev.txt
-cp .env.example .env
 alembic upgrade head
 python -m app.seed
 uvicorn app.main:app --reload
 ```
 
-> The Docker database uses host port **5433**, so it doesn't clash with a locally installed PostgreSQL.
+> The Docker database uses host port **5433**, so it doesn't clash with a locally installed PostgreSQL. In option B, `FIREBASE_CREDENTIALS_PATH` must be the key's local path (for example `secrets/firebase-service-account.json`), not `/code/...`.
+
+### 3. Connect the app
+
+Start the [Flutter app](https://github.com/ISIS3510-Group-27/SENECApp-Frontend-Flutter) with the matching sign-in mode from the table in step 1. The Android emulator reaches this API at `http://10.0.2.2:8000` without any extra setup. For a physical phone, see [Connecting to the local backend](docs/frontend-integration.md#connecting-to-the-local-backend).
 
 ## Seeding
 
@@ -94,7 +118,7 @@ The apps sign in with Firebase and send `Authorization: Bearer <firebase-id-toke
 
 | `AUTH_PROVIDER` | Token accepted |
 |---|---|
-| `dev` (default) | `dev:<email>`, for local development, Swagger and tests. Rejected at startup when `APP_ENV=production` |
+| `dev` (default when unset) | `dev:<email>`, for local development, Swagger and tests. Rejected at startup when `APP_ENV=production` |
 | `firebase` | Real Firebase ID tokens. Set `FIREBASE_PROJECT_ID` |
 
 Administrators (`ADMIN_EMAILS`) can use `/admin/*` and `/analytics/bq/*`, including the group review queue: `GET /admin/groups/pending`, `POST /admin/groups/{id}/approve`, `POST /admin/groups/{id}/reject`. See [docs/frontend-integration.md](docs/frontend-integration.md#creating-a-group-create-rso-review-flow).
