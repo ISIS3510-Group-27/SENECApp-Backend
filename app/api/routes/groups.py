@@ -56,7 +56,8 @@ def search_groups(
 def create_group(
     data: GroupCreate, user: CurrentUser, db: DbSession, context: ClientCtx
 ) -> GroupDetail:
-    """Create a student group. The creator becomes its first admin."""
+    """Propose a student group. It stays pending until approved; the creator joins it as
+    a member (group admins are assigned by platform admins)."""
     group = group_service.create_group(db, user, data, context)
     return group_service.get_group_detail(db, user, group.id, context=context)
 

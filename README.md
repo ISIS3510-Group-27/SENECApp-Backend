@@ -123,6 +123,25 @@ The apps sign in with Firebase and send `Authorization: Bearer <firebase-id-toke
 
 Administrators (`ADMIN_EMAILS`) can use `/admin/*` and `/analytics/bq/*`, including the group review queue: `GET /admin/groups/pending`, `POST /admin/groups/{id}/approve`, `POST /admin/groups/{id}/reject`. See [docs/frontend-integration.md](docs/frontend-integration.md#creating-a-group-create-rso-review-flow).
 
+### Managing groups and their admins
+
+Group admins (organizers) can create events, show check-in QR codes and use the leader tools. Platform admins manage them with:
+
+| Endpoint | What it does |
+|---|---|
+| `GET /admin/groups` | Every group (any status) with id, members, admins and whether it comes from the catalog |
+| `GET /admin/groups/{id}/admins` | Admins, plus emails waiting for their first sign-in |
+| `POST /admin/groups/{id}/admins` `{"email": "..."}` | Make a student an admin. Without an account yet, they become admin on their first sign-in |
+| `DELETE /admin/groups/{id}/admins/{email}` | Remove an admin (they stay in the group as a member) |
+| `PATCH /admin/groups/{id}` `{"is_active": false}` | Deactivate a group (hidden, data kept) or reactivate it |
+| `DELETE /admin/groups/{id}` | Delete a group and everything attached. Refused (409) for catalog groups |
+
+**Group admins are only assigned this way**, by platform admins. Students who propose a group (Create RSO) join it as regular members.
+
+**Platform admins** are the emails in `ADMIN_EMAILS` plus the permanent super admins in `app/core/config.py` (`SUPER_ADMINS`: `n.salazars@uniandes.edu.co`, `c.castilla@uniandes.edu.co`), who keep access whatever the `.env` says.
+
+To delete a catalog group, remove it from the file, redeploy, then call `DELETE /admin/groups/{id}`.
+
 ## Push notifications
 
 Notifications are always stored in the in-app inbox. To also push them to phones:

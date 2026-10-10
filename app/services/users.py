@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session, selectinload
 from app.auth.verifiers import VerifiedIdentity
 from app.models import Interest, User, UserInterest
 from app.schemas.user import UserUpdate
+from app.services import group_admins
 
 
 class UnknownInterestsError(Exception):
@@ -31,7 +32,8 @@ def get_or_create_user(db: Session, identity: VerifiedIdentity) -> User:
     """Resolve the signed-in identity to a ``User``, creating it on first sign-in.
 
     Lookup order: Firebase UID, then email (links a pre-existing/seeded account to
-    its Firebase identity), otherwise a new user is created.
+    its Firebase identity), otherwise a new user is created. On that first sign-in,
+    pending group-admin invites for the email are applied.
     """
     user = db.scalar(select(User).where(User.firebase_uid == identity.uid))
     if user is None:
@@ -50,6 +52,8 @@ def get_or_create_user(db: Session, identity: VerifiedIdentity) -> User:
             # A concurrent first request created/linked the same account; use that one.
             db.rollback()
             user = db.scalars(select(User).where(User.firebase_uid == identity.uid)).one()
+        else:
+            group_admins.apply_invites(db, user)
     return user
 
 

@@ -68,7 +68,7 @@ Student-created groups are **proposals**: Uniandes Student Affairs reviews them 
    - `category` is a slug from `GET /categories`. You can send `category_id` instead, but **exactly one** of the two (422 otherwise, also for unknown values).
    - `tag_ids` (0–8 interest ids) is optional. Without it, up to 3 tags are inferred from the name and description (interests of that category that are mentioned), or the category's most popular interest.
    - Optional fields still accepted: `color`, `image_url`, `founded_year`, `instagram_url`, `website_url`, `meeting_building_id`.
-   - 201 returns the group (`GroupDetail`) with `review_status: "pending"` and `my_role: "admin"`. Show "Proposal Submitted!".
+   - 201 returns the group (`GroupDetail`) with `review_status: "pending"` and `my_role: "member"`. Show "Proposal Submitted!". The creator follows the proposal as a member; after approval, platform admins assign its group admins (`POST /admin/groups/{id}/admins`).
    - 409 if the name is taken; 422 for an invalid `contact_email`.
 2. **While pending**, the group is only visible to its creator: it appears in `GET /me/groups` and `GET /groups/{id}`, but not in search, recommendations or event listings. Nobody can join it (409), and it can't publish events (409). Use `review_status` to show a "Pending review" badge.
 3. **Review** (platform admins): `GET /admin/groups/pending`, then `POST /admin/groups/{id}/approve` or `POST /admin/groups/{id}/reject` with `{ "reason": "..." }`.

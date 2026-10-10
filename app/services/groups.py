@@ -461,7 +461,8 @@ def create_group(
     db: Session, user: User, data: GroupCreate, context: ClientContext | None
 ) -> StudentGroup:
     """Submit a group proposal. It stays ``pending`` (invisible to other students) until a
-    platform admin approves it; the creator becomes its admin right away."""
+    platform admin approves it. The creator joins it as a member; admins are assigned
+    by platform admins."""
     if db.scalar(select(StudentGroup.id).where(func.lower(StudentGroup.name) == data.name.lower())):
         raise ConflictError("A group with this name already exists")
     category = _resolve_category(db, data)
@@ -489,11 +490,13 @@ def create_group(
     )
     db.add(group)
     db.flush()
+    # The creator follows their proposal as a member. Group admins are only assigned
+    # by platform admins (POST /admin/groups/{id}/admins).
     db.add(
         Membership(
             user_id=user.id,
             group_id=group.id,
-            role=MembershipRole.ADMIN,
+            role=MembershipRole.MEMBER,
             status=MembershipStatus.ACTIVE,
         )
     )

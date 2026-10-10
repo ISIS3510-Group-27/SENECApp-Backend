@@ -129,7 +129,7 @@ def test_cannot_join_inactive_group(client: TestClient, db_session: Session) -> 
     assert response.status_code == 409
 
 
-def test_create_group_makes_creator_admin(client: TestClient, db_session: Session) -> None:
+def test_create_group_makes_creator_a_member(client: TestClient, db_session: Session) -> None:
     tag = interest_by_name(db_session, "Cybersecurity")
     payload = {
         "name": "Ciberseguridad Uniandes",
@@ -145,7 +145,7 @@ def test_create_group_makes_creator_admin(client: TestClient, db_session: Sessio
     )
 
     assert created.status_code == 201
-    assert created.json()["my_role"] == "admin"
+    assert created.json()["my_role"] == "member"
     assert created.json()["member_count"] == 1
     assert duplicate.status_code == 409
     assert bad_tag.status_code == 422
