@@ -46,6 +46,7 @@ from app.services.errors import (
     PermissionDeniedError,
     ValidationFailedError,
 )
+from app.services.schedule import campus_tz
 
 UPCOMING_EVENTS_IN_DETAIL = 5
 
@@ -268,6 +269,8 @@ def get_group_detail(
     context: ClientContext | None = None,
 ) -> GroupDetail:
     """Group profile. Opening it is recorded as ``group_viewed`` (BQ4, BQ6, BQ7, BQ13)."""
+    from app.services import admin_requests  # imports this module
+
     group = db.scalar(
         select(StudentGroup)
         .where(StudentGroup.id == group_id)
@@ -315,6 +318,18 @@ def get_group_detail(
         ),
         upcoming_events=[EventSummary.model_validate(e) for e in upcoming],
         my_role=membership.role.value if membership else None,
+        admin_request_status=(
+            "pending"
+            if membership
+            and membership.role != MembershipRole.ADMIN
+            and admin_requests.pending_request(db, user.id, group_id)
+            else None
+        ),
+        pending_admin_requests=(
+            admin_requests.pending_count(db, group_id)
+            if membership and membership.role == MembershipRole.ADMIN
+            else None
+        ),
         created_at=group.created_at,
     )
 
@@ -461,8 +476,8 @@ def create_group(
     db: Session, user: User, data: GroupCreate, context: ClientContext | None
 ) -> StudentGroup:
     """Submit a group proposal. It stays ``pending`` (invisible to other students) until a
-    platform admin approves it. The creator joins it as a member; admins are assigned
-    by platform admins."""
+    platform admin approves it. The creator becomes its first admin; other members can
+    ask to be admins (see ``admin_requests``). Without a founded year, it's this year."""
     if db.scalar(select(StudentGroup.id).where(func.lower(StudentGroup.name) == data.name.lower())):
         raise ConflictError("A group with this name already exists")
     category = _resolve_category(db, data)
@@ -479,7 +494,7 @@ def create_group(
         description=data.description,
         color=data.color,
         image_url=_url(data.image_url),
-        founded_year=data.founded_year,
+        founded_year=data.founded_year or datetime.now(campus_tz()).year,
         contact_email=data.contact_email,
         instagram_url=_url(data.instagram_url),
         website_url=_url(data.website_url),
@@ -490,13 +505,11 @@ def create_group(
     )
     db.add(group)
     db.flush()
-    # The creator follows their proposal as a member. Group admins are only assigned
-    # by platform admins (POST /admin/groups/{id}/admins).
     db.add(
         Membership(
             user_id=user.id,
             group_id=group.id,
-            role=MembershipRole.MEMBER,
+            role=MembershipRole.ADMIN,
             status=MembershipStatus.ACTIVE,
         )
     )

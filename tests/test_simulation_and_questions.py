@@ -49,7 +49,7 @@ def test_planted_patterns_are_found(client: TestClient, simulated: Session) -> N
     entry_points = {r["entry_point"]: r["joins"] for r in answer("6")["data"]["entry_points"]}
     assert entry_points["recommendation"] > entry_points["search"]
     unmet = {r["interest"] for r in answer("9")["data"]["interests"] if r["unmet_demand"]}
-    assert {"Cybersecurity", "Climbing", "Model UN"} <= unmet
+    assert {"Cybersecurity", "Climbing", "UN Model"} <= unmet
 
 
 def test_business_questions_require_admin(client: TestClient) -> None:

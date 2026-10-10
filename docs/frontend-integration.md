@@ -68,7 +68,7 @@ Student-created groups are **proposals**: Uniandes Student Affairs reviews them 
    - `category` is a slug from `GET /categories`. You can send `category_id` instead, but **exactly one** of the two (422 otherwise, also for unknown values).
    - `tag_ids` (0–8 interest ids) is optional. Without it, up to 3 tags are inferred from the name and description (interests of that category that are mentioned), or the category's most popular interest.
    - Optional fields still accepted: `color`, `image_url`, `founded_year`, `instagram_url`, `website_url`, `meeting_building_id`.
-   - 201 returns the group (`GroupDetail`) with `review_status: "pending"` and `my_role: "member"`. Show "Proposal Submitted!". The creator follows the proposal as a member; after approval, platform admins assign its group admins (`POST /admin/groups/{id}/admins`).
+   - 201 returns the group (`GroupDetail`) with `review_status: "pending"` and `my_role: "admin"`. Show "Proposal Submitted!". If no founded year is sent, it's the current year.
    - 409 if the name is taken; 422 for an invalid `contact_email`.
 2. **While pending**, the group is only visible to its creator: it appears in `GET /me/groups` and `GET /groups/{id}`, but not in search, recommendations or event listings. Nobody can join it (409), and it can't publish events (409). Use `review_status` to show a "Pending review" badge.
 3. **Review** (platform admins): `GET /admin/groups/pending`, then `POST /admin/groups/{id}/approve` or `POST /admin/groups/{id}/reject` with `{ "reason": "..." }`.
@@ -77,6 +77,13 @@ Student-created groups are **proposals**: Uniandes Student Affairs reviews them 
    - **Rejected:** the group stays hidden, and the creator sees `review_status: "rejected"` with `rejection_reason` in `GET /me/groups`.
 
 New fields on every `GroupSummary` / `GroupDetail`: `review_status` (`pending` | `approved` | `rejected`) and `rejection_reason` (null unless rejected).
+
+## Admin requests (per group)
+
+- Group profile (`GET /groups/{id}`) has `admin_request_status` (`"pending"` while the student's own request waits) and, for the group's admins, `pending_admin_requests` (a count).
+- A member who isn't admin: `POST /groups/{id}/admin-requests` with an optional `{"note": "..."}` (max 300). 409 if already admin or a request is open.
+- The group's admins: `GET /groups/{id}/admin-requests` (oldest first), then `POST /groups/{id}/admin-requests/{request_id}/approve` or `/reject`.
+- Notifications of type `admin_request` go to the admins (new request) and to the member (decision); `data.status` is `pending`, `approved` or `rejected`, and `group_id` opens the group.
 
 ## Other endpoints
 

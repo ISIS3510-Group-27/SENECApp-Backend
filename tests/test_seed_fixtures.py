@@ -10,7 +10,7 @@ PROTOTYPE_GROUPS = [
     "Tennis Uniandes",
     "Emprendedores Uniandes",
     "Viajeros Uniandes",
-    "Auto Enthusiasts",
+    "Motor's Uniandes",
     "AI & Machine Learning",
     "Teatro Los Andes",
     "Finance Society",

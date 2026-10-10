@@ -8,11 +8,13 @@ from sqlalchemy import (
     Boolean,
     DateTime,
     ForeignKey,
+    Index,
     Integer,
     String,
     Text,
     UniqueConstraint,
     func,
+    text,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -178,3 +180,40 @@ class GroupAdminInvite(CreatedAtMixin, Base):
     )
     # Always stored lowercase.
     email: Mapped[str] = mapped_column(String(255), index=True)
+
+
+class AdminRequestStatus(enum.StrEnum):
+    PENDING = "pending"
+    APPROVED = "approved"
+    REJECTED = "rejected"
+
+
+class GroupAdminRequest(CreatedAtMixin, Base):
+    """A member asking to become an admin of the group; the group's admins decide."""
+
+    __tablename__ = "group_admin_requests"
+    __table_args__ = (
+        enum_check("status", AdminRequestStatus),
+        # At most one open request per member and group.
+        Index(
+            "uq_group_admin_requests_one_pending",
+            "group_id",
+            "user_id",
+            unique=True,
+            postgresql_where=text("status = 'pending'"),
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    group_id: Mapped[int] = mapped_column(
+        ForeignKey("student_groups.id", ondelete="CASCADE"), index=True
+    )
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    status: Mapped[AdminRequestStatus] = mapped_column(
+        str_enum(AdminRequestStatus), default=AdminRequestStatus.PENDING
+    )
+    note: Mapped[str | None] = mapped_column(Text)
+    decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    decided_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
+
+    user: Mapped[User] = relationship(foreign_keys=[user_id])

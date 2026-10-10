@@ -73,6 +73,10 @@ class GroupDetail(GroupSummary):
     meeting_building: BuildingRead | None
     upcoming_events: list[EventSummary]
     my_role: str | None
+    # "pending" while the student's own request to become admin waits for an answer.
+    admin_request_status: str | None = None
+    # For the group's admins: how many members are waiting for an answer.
+    pending_admin_requests: int | None = None
     created_at: datetime
 
 
@@ -173,3 +177,21 @@ class RejectRequest(BaseModel):
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
 
     reason: str = Field(min_length=1, max_length=500)
+
+
+class AdminRequestIn(BaseModel):
+    """A member asking to become an admin of the group."""
+
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+
+    note: str | None = Field(default=None, max_length=300)
+
+
+class AdminRequestRead(BaseModel):
+    id: int
+    group_id: int
+    requester: GroupCreator
+    note: str | None
+    status: str
+    created_at: datetime
+    decided_at: datetime | None

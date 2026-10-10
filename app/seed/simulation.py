@@ -105,7 +105,7 @@ INTEREST_WEIGHTS = {
     "Data Science": 1.5,
     "Video Games": 1.5,
     "Dance": 1.3,
-    "Model UN": 1.0,
+    "UN Model": 1.0,
     "Swimming": 0.9,
 }
 # Explore browsing preference by category (BQ13: tech & sports get the most views).
@@ -501,8 +501,12 @@ class Simulation:
         self.demo = self.students[0]
 
     def _schedule_for(self, user_id: int) -> list[ScheduleBlock]:
-        codes = list(CLASS_BUILDINGS)
-        weights = list(CLASS_BUILDINGS.values())
+        # Only buildings that exist in the catalog (the fixture can change).
+        available = {c: w for c, w in CLASS_BUILDINGS.items() if c in self.buildings}
+        if not available:
+            available = dict.fromkeys(self.buildings, 1.0)
+        codes = list(available)
+        weights = list(available.values())
         blocks = []
         for weekday in sorted(self.rng.sample(range(5), self.rng.randint(3, 5))):
             for slot in sorted(self.rng.sample(CLASS_SLOTS, self.rng.randint(1, 3))):
@@ -583,7 +587,9 @@ class Simulation:
     # --- Events ----------------------------------------------------------------------------
 
     def _create_events(self) -> None:
-        central = [self.buildings[c] for c in ("ML", "SD", "W", "AU", "C")]
+        central = [
+            self.buildings[c] for c in ("ML", "SD", "W", "AU", "C") if c in self.buildings
+        ] or list(self.buildings.values())
         for info in self.active_groups:
             weekday = self.rng.randint(0, 4)
             start_time = self.rng.choice(MEETING_TIMES)
@@ -995,7 +1001,8 @@ class Simulation:
                 (b.building for b in student.blocks if b.building_id == free.previous_building_id),
                 None,
             )
-            or self.buildings["ML"]
+            or self.buildings.get("ML")
+            or next(iter(self.buildings.values()))
         )
         window_end = free.ends_at - timedelta(minutes=20)
         candidates = [

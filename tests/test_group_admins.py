@@ -192,7 +192,7 @@ def test_delete_refuses_catalog_groups_but_deletes_proposals(
 
     assert listed["Runners Club"]["from_catalog"] is True
     assert listed["Grupo de Prueba"]["from_catalog"] is False
-    assert listed["Grupo de Prueba"]["admin_emails"] == []  # the creator is only a member
+    assert listed["Grupo de Prueba"]["admin_emails"] == ["student@uniandes.edu.co"]
     assert refused.status_code == 409
     assert "student_groups.json" in refused.json()["detail"]
     assert deleted.status_code == 204

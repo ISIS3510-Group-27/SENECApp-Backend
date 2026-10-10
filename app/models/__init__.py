@@ -9,8 +9,10 @@ from app.models.analytics import AnalyticsEvent
 from app.models.campus import CampusBuilding
 from app.models.event import Attendance, CheckInMethod, Event
 from app.models.group import (
+    AdminRequestStatus,
     EntryPoint,
     GroupAdminInvite,
+    GroupAdminRequest,
     GroupInterest,
     GroupSave,
     Membership,
@@ -46,6 +48,7 @@ from app.models.schedule import ScheduleBlock
 from app.models.user import User
 
 __all__ = [
+    "AdminRequestStatus",
     "AnalyticsEvent",
     "Attendance",
     "Base",
@@ -57,6 +60,7 @@ __all__ = [
     "Event",
     "FeatureArea",
     "GroupAdminInvite",
+    "GroupAdminRequest",
     "GroupInterest",
     "GroupMessage",
     "GroupSave",

@@ -57,6 +57,8 @@ class NotificationType(enum.StrEnum):
     EVENT_REMINDER = "event_reminder"
     # Outcome of a group proposal, sent to its creator (not part of BQ8).
     GROUP_REVIEW = "group_review"
+    # A member asked to be admin (to the group's admins), or the decision (to the member).
+    ADMIN_REQUEST = "admin_request"
 
 
 class PushStatus(enum.StrEnum):

@@ -57,14 +57,14 @@ def _building(db: Session, code: str) -> CampusBuilding:
 # --- Creation --------------------------------------------------------------------------
 
 
-def test_created_group_is_pending_and_creator_is_a_member(
+def test_created_group_is_pending_and_creator_is_admin(
     client: TestClient, db_session: Session
 ) -> None:
     created = _propose(client)
 
     assert created["review_status"] == "pending"
     assert created["rejection_reason"] is None
-    assert created["my_role"] == "member"  # admins are assigned only by platform admins
+    assert created["my_role"] == "admin"
     assert created["member_count"] == 1
     assert created["contact_email"] == "ciber@uniandes.edu.co"
     [event] = _events(db_session, "group_created")
@@ -220,10 +220,6 @@ def test_cannot_join_or_publish_events_while_pending(client: TestClient) -> None
     starts = datetime.now(UTC) + timedelta(days=1)
 
     join = client.post(f"/api/v1/groups/{created['id']}/join", headers=STUDENT, json={})
-    # Not even an admin assigned by a platform admin can publish before approval.
-    client.post(
-        f"/api/v1/admin/groups/{created['id']}/admins", headers=ADMIN, json={"email": CREATOR_EMAIL}
-    )
     event = client.post(
         f"/api/v1/groups/{created['id']}/events",
         headers=CREATOR,

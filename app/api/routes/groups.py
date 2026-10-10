@@ -4,10 +4,13 @@ from typing import Annotated
 from fastapi import APIRouter, Query, Response, status
 
 from app.api.deps import ClientCtx, CurrentUser, DbSession
-from app.models import EntryPoint
+from app.models import EntryPoint, GroupAdminRequest, User
 from app.schemas.common import Page
 from app.schemas.group import (
+    AdminRequestIn,
+    AdminRequestRead,
     GroupCreate,
+    GroupCreator,
     GroupDetail,
     GroupFilters,
     GroupSort,
@@ -16,6 +19,7 @@ from app.schemas.group import (
     JoinRequest,
     MembershipRead,
 )
+from app.services import admin_requests
 from app.services import groups as group_service
 
 router = APIRouter(prefix="/groups", tags=["groups"])
@@ -129,3 +133,55 @@ def join_group(
 def leave_group(group_id: int, user: CurrentUser, db: DbSession, context: ClientCtx) -> Response:
     group_service.leave_group(db, user, group_id, context)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.post("/{group_id}/admin-requests", status_code=status.HTTP_201_CREATED)
+def request_admin_access(
+    group_id: int,
+    user: CurrentUser,
+    db: DbSession,
+    context: ClientCtx,
+    body: AdminRequestIn | None = None,
+) -> AdminRequestRead:
+    """A member asks to become an admin. The group's admins are notified and decide.
+    409 if already an admin or a request is still open."""
+    note = body.note if body else None
+    return _request_read(admin_requests.request_admin(db, user, group_id, note, context), user)
+
+
+@router.get("/{group_id}/admin-requests")
+def list_admin_requests(group_id: int, user: CurrentUser, db: DbSession) -> list[AdminRequestRead]:
+    """Open requests to become admin, oldest first (group admins)."""
+    return [_request_read(r, r.user) for r in admin_requests.list_pending(db, user, group_id)]
+
+
+@router.post("/{group_id}/admin-requests/{request_id}/approve")
+def approve_admin_request(
+    group_id: int, request_id: int, user: CurrentUser, db: DbSession, context: ClientCtx
+) -> AdminRequestRead:
+    """The member becomes an admin of the group (group admins)."""
+    request = admin_requests.decide(db, user, group_id, request_id, True, context)
+    return _request_read(request, request.user)
+
+
+@router.post("/{group_id}/admin-requests/{request_id}/reject")
+def reject_admin_request(
+    group_id: int, request_id: int, user: CurrentUser, db: DbSession, context: ClientCtx
+) -> AdminRequestRead:
+    """Decline the request; the member can ask again later (group admins)."""
+    request = admin_requests.decide(db, user, group_id, request_id, False, context)
+    return _request_read(request, request.user)
+
+
+def _request_read(request: GroupAdminRequest, requester: User) -> AdminRequestRead:
+    return AdminRequestRead(
+        id=request.id,
+        group_id=request.group_id,
+        requester=GroupCreator(
+            id=requester.id, full_name=requester.full_name, email=requester.email
+        ),
+        note=request.note,
+        status=request.status.value,
+        created_at=request.created_at,
+        decided_at=request.decided_at,
+    )

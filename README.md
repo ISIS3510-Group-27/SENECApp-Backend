@@ -136,7 +136,12 @@ Group admins (organizers) can create events, show check-in QR codes and use the 
 | `PATCH /admin/groups/{id}` `{"is_active": false}` | Deactivate a group (hidden, data kept) or reactivate it |
 | `DELETE /admin/groups/{id}` | Delete a group and everything attached. Refused (409) for catalog groups |
 
-**Group admins are only assigned this way**, by platform admins. Students who propose a group (Create RSO) join it as regular members.
+**Group admins** come from three places:
+- the **creator** of a proposed RSO is its first admin (it still needs a platform admin's approval to go public);
+- **members can ask** to become admins, and the group's own admins approve or decline: `POST /groups/{id}/admin-requests` (optional `{"note"}`), `GET /groups/{id}/admin-requests`, `POST /groups/{id}/admin-requests/{request_id}/approve|reject`. Both sides get an `admin_request` notification;
+- **platform admins** assign them directly with the endpoints above.
+
+Events never need platform approval: group admins publish them once the group itself is approved.
 
 **Platform admins** are the emails in `ADMIN_EMAILS` plus the permanent super admins in `app/core/config.py` (`SUPER_ADMINS`: `n.salazars@uniandes.edu.co`, `c.castilla@uniandes.edu.co`), who keep access whatever the `.env` says.
 
