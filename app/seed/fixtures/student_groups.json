@@ -37,7 +37,7 @@
         "contact_email": null,
         "instagram_url": "https://instagram.com/viajerosuniandes",
         "website_url": null,
-        "meeting_building": "EP",
+        "meeting_building": "CD",
         "tags": ["Travel", "Hiking", "Culture"]
     },
     {
@@ -51,7 +51,7 @@
         "contact_email": null,
         "instagram_url": "https://instagram.com/autoenthusiastsuniandes",
         "website_url": null,
-        "meeting_building": "P6",
+        "meeting_building": "ML",
         "tags": ["Cars", "Motorsport"]
     },
     {
@@ -149,7 +149,7 @@
         "contact_email": null,
         "instagram_url": "https://instagram.com/runnersuniandes",
         "website_url": null,
-        "meeting_building": "EP",
+        "meeting_building": "CD",
         "tags": ["Running", "Hiking"]
     },
     {
@@ -303,7 +303,7 @@
         "contact_email": null,
         "instagram_url": null,
         "website_url": null,
-        "meeting_building": "BG",
+        "meeting_building": "ML",
         "tags": ["Board Games", "Coffee & Conversation"]
     },
     {
@@ -317,7 +317,7 @@
         "contact_email": "languages@uniandes.edu.co",
         "instagram_url": "https://instagram.com/languageexchangeuniandes",
         "website_url": null,
-        "meeting_building": "G",
+        "meeting_building": "AU",
         "tags": ["Languages", "Exchange Programs", "Coffee & Conversation"]
     },
     {
