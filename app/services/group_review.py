@@ -7,10 +7,19 @@ rejecting keeps them hidden. Either way the creator is notified.
 
 from datetime import UTC, datetime
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session, selectinload
 
-from app.models import NotificationType, ReviewStatus, StudentGroup, User
+from app.models import (
+    GroupAdminInvite,
+    Membership,
+    MembershipRole,
+    MembershipStatus,
+    NotificationType,
+    ReviewStatus,
+    StudentGroup,
+    User,
+)
 from app.schemas.catalog import CategoryRead, TagRead
 from app.schemas.group import GroupCreator, PendingGroupRead
 from app.services import notifications
@@ -114,3 +123,104 @@ def _review_properties(group: StudentGroup) -> dict:
         "category_id": group.category_id,
         "hours_pending": round((datetime.now(UTC) - group.created_at).total_seconds() / 3600, 2),
     }
+
+
+# --- Group management (platform admins) -------------------------------------------------
+
+
+def catalog_group_names() -> set[str]:
+    """Names of the groups in the reference fixture (re-created on every start)."""
+    from app.seed.loader import load_reference_fixtures
+
+    return {g.name for g in load_reference_fixtures().student_groups}
+
+
+def list_all_groups(db: Session) -> list[dict]:
+    """Every group with its status, member count and admins, ordered by name."""
+    counts = dict(
+        db.execute(
+            select(Membership.group_id, func.count(Membership.id))
+            .where(Membership.status == MembershipStatus.ACTIVE)
+            .group_by(Membership.group_id)
+        ).all()
+    )
+    admins: dict[int, list[str]] = {}
+    for group_id, email in db.execute(
+        select(Membership.group_id, User.email)
+        .join(User, User.id == Membership.user_id)
+        .where(
+            Membership.role == MembershipRole.ADMIN,
+            Membership.status == MembershipStatus.ACTIVE,
+        )
+        .order_by(User.email)
+    ):
+        admins.setdefault(group_id, []).append(email)
+    pending: dict[int, list[str]] = {}
+    for group_id, email in db.execute(
+        select(GroupAdminInvite.group_id, GroupAdminInvite.email).order_by(GroupAdminInvite.email)
+    ):
+        pending.setdefault(group_id, []).append(email)
+
+    catalog = catalog_group_names()
+    groups = db.scalars(
+        select(StudentGroup)
+        .options(selectinload(StudentGroup.category))
+        .order_by(StudentGroup.name)
+    )
+    return [
+        {
+            "id": g.id,
+            "name": g.name,
+            "category": g.category.slug,
+            "review_status": g.review_status.value,
+            "is_active": g.is_active,
+            "member_count": counts.get(g.id, 0),
+            "admin_emails": admins.get(g.id, []),
+            "pending_admin_emails": pending.get(g.id, []),
+            "from_catalog": g.name in catalog,
+        }
+        for g in groups
+    ]
+
+
+def set_active(db: Session, admin: User, group_id: int, is_active: bool) -> StudentGroup:
+    """Deactivate (hide from search, recommendations, joins and events) or reactivate."""
+    group = _get(db, group_id)
+    group.is_active = is_active
+    track(
+        db,
+        "group_activated" if is_active else "group_deactivated",
+        user_id=admin.id,
+        properties={"group_id": group.id},
+    )
+    db.commit()
+    return group
+
+
+def delete_group(db: Session, admin: User, group_id: int) -> None:
+    """Delete a group and everything attached to it (members, events, chat...).
+
+    Catalog groups are refused: the next start would re-create them. Remove them
+    from ``student_groups.json`` first, or deactivate them instead.
+    """
+    group = _get(db, group_id)
+    if group.name in catalog_group_names():
+        raise ConflictError(
+            "This group is in app/seed/fixtures/student_groups.json and would be re-created "
+            "on the next start. Remove it from the file and redeploy first, or deactivate it."
+        )
+    track(
+        db,
+        "group_deleted",
+        user_id=admin.id,
+        properties={"group_id": group.id, "name": group.name},
+    )
+    db.delete(group)
+    db.commit()
+
+
+def _get(db: Session, group_id: int) -> StudentGroup:
+    group = db.get(StudentGroup, group_id)
+    if group is None:
+        raise NotFoundError("Group not found")
+    return group

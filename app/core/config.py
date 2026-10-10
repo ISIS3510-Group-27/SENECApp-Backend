@@ -4,6 +4,10 @@ from typing import Literal
 from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+# Platform admins that can't be removed by configuration. Only they (and ADMIN_EMAILS)
+# can review groups and assign group admins, through /admin endpoints (Swagger).
+SUPER_ADMINS = ("c.castilla@uniandes.edu.co", "n.salazars@uniandes.edu.co")
+
 
 class Settings(BaseSettings):
     """Application settings loaded from environment variables / .env file."""
@@ -50,12 +54,14 @@ class Settings(BaseSettings):
     # Run background jobs (re-engagement, recommender training) inside the API process.
     scheduler_enabled: bool = False
 
-    # Comma-separated emails with access to analytics/operations endpoints.
+    # Comma-separated emails with access to analytics/operations endpoints (platform
+    # admins), in addition to the permanent ones in SUPER_ADMINS.
     admin_emails: str = "admin@uniandes.edu.co"
 
     @property
     def admin_emails_list(self) -> list[str]:
-        return [email.lower() for email in _split_csv(self.admin_emails)]
+        configured = [email.lower() for email in _split_csv(self.admin_emails)]
+        return sorted(set(configured) | set(SUPER_ADMINS))
 
     @property
     def cors_origins_list(self) -> list[str]:

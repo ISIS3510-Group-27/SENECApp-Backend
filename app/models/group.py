@@ -160,3 +160,21 @@ class GroupSave(CreatedAtMixin, Base):
 
     user: Mapped[User] = relationship(back_populates="saves")
     group: Mapped[StudentGroup] = relationship()
+
+
+class GroupAdminInvite(CreatedAtMixin, Base):
+    """Makes ``email`` an admin of the group as soon as that student first signs in.
+
+    Used for organizers of catalog groups and for admins assigned by platform
+    admins before the person has an account.
+    """
+
+    __tablename__ = "group_admin_invites"
+    __table_args__ = (UniqueConstraint("group_id", "email"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    group_id: Mapped[int] = mapped_column(
+        ForeignKey("student_groups.id", ondelete="CASCADE"), index=True
+    )
+    # Always stored lowercase.
+    email: Mapped[str] = mapped_column(String(255), index=True)

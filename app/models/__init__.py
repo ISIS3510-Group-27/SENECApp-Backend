@@ -10,6 +10,7 @@ from app.models.campus import CampusBuilding
 from app.models.event import Attendance, CheckInMethod, Event
 from app.models.group import (
     EntryPoint,
+    GroupAdminInvite,
     GroupInterest,
     GroupSave,
     Membership,
@@ -55,6 +56,7 @@ __all__ = [
     "EntryPoint",
     "Event",
     "FeatureArea",
+    "GroupAdminInvite",
     "GroupInterest",
     "GroupMessage",
     "GroupSave",
