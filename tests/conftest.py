@@ -1,9 +1,18 @@
 import os
+import tempfile
 from collections.abc import Generator
 
 # Tests must not depend on a developer's .env: environment variables take precedence
 # over it, so pin the settings that change behavior before the app is imported.
-os.environ.update({"AUTH_PROVIDER": "dev", "PUSH_PROVIDER": "none", "SCHEDULER_ENABLED": "false"})
+os.environ.update(
+    {
+        "AUTH_PROVIDER": "dev",
+        "PUSH_PROVIDER": "none",
+        "SCHEDULER_ENABLED": "false",
+        # Uploaded photos go to a throwaway folder, never to the real media directory.
+        "MEDIA_ROOT": tempfile.mkdtemp(prefix="senecapp-media-"),
+    }
+)
 
 import pytest  # noqa: E402
 from alembic import command  # noqa: E402

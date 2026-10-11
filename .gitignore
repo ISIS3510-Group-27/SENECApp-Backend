@@ -39,3 +39,4 @@ Thumbs.db
 # --- Logs & local data ---
 *.log
 data/
+media/

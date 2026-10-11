@@ -543,6 +543,31 @@ def update_group(db: Session, user: User, group_id: int, changes: GroupUpdate) -
     return group
 
 
+def upload_cover(
+    db: Session, user: User, group_id: int, raw: bytes, context: ClientContext | None
+) -> StudentGroup:
+    """Replace the group's cover photo with an uploaded image (group admins)."""
+    from app.services import media  # Pillow is only needed here
+
+    group = _get_group(db, group_id)
+    require_group_admin(db, user, group_id)
+    photo = media.prepare_photo(raw)
+    storage = media.get_media_storage()
+    previous = group.image_url
+    group.image_url = storage.save(media.new_cover_key(group_id), photo)
+    track(
+        db,
+        "group_cover_updated",
+        user_id=user.id,
+        context=context,
+        properties={"group_id": group_id, "bytes": len(photo)},
+    )
+    db.commit()
+    if previous:
+        storage.delete(previous)  # only removes files we stored ourselves
+    return group
+
+
 def require_group_admin(db: Session, user: User, group_id: int) -> None:
     membership = _active_membership(db, user.id, group_id)
     if membership is None or membership.role != MembershipRole.ADMIN:

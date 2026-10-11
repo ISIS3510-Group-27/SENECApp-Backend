@@ -10,6 +10,8 @@ from app.models import JobRun, RecommenderModel, ReengagementCase, Release, Stud
 from app.schemas.admin import (
     AddGroupAdmin,
     AdminGroupRead,
+    BuildingIn,
+    BuildingUpdate,
     GroupAdminsRead,
     GroupAdminUser,
     GroupStatusUpdate,
@@ -19,8 +21,9 @@ from app.schemas.admin import (
     ReleaseIn,
     ReleaseRead,
 )
+from app.schemas.catalog import BuildingRead
 from app.schemas.group import GroupReviewResult, PendingGroupRead, RejectRequest
-from app.services import group_admins, group_review, reengagement
+from app.services import buildings, group_admins, group_review, reengagement
 from app.services.errors import NotFoundError, ValidationFailedError
 
 router = APIRouter(prefix="/admin", tags=["admin"])
@@ -189,3 +192,26 @@ def _admin_group(db: DbSession, group_id: int) -> AdminGroupRead:
     return next(
         AdminGroupRead(**g) for g in group_review.list_all_groups(db) if g["id"] == group_id
     )
+
+
+@router.post("/buildings", status_code=status.HTTP_201_CREATED)
+def create_building(body: BuildingIn, _admin: AdminUser, db: DbSession) -> BuildingRead:
+    """Add a campus building (code is stored uppercase). It's available right away for
+    events, class schedules, group meeting places and "Free right now"."""
+    return BuildingRead.model_validate(buildings.create(db, body))
+
+
+@router.patch("/buildings/{code}")
+def update_building(
+    code: str, body: BuildingUpdate, _admin: AdminUser, db: DbSession
+) -> BuildingRead:
+    """Rename or move a building added here. 409 for fixture buildings (edit the file)."""
+    return BuildingRead.model_validate(buildings.update(db, code, body))
+
+
+@router.delete("/buildings/{code}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_building(code: str, _admin: AdminUser, db: DbSession) -> Response:
+    """Delete a building that isn't in the fixture. Events, classes and groups that used
+    it keep existing without a building."""
+    buildings.delete(db, code)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)

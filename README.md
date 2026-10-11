@@ -143,6 +143,18 @@ Group admins (organizers) can create events, show check-in QR codes and use the 
 
 Events never need platform approval: group admins publish them once the group itself is approved.
 
+### Campus buildings
+
+The 8 buildings in `app/seed/fixtures/campus_buildings.json` are re-applied on every start (edit them there). Platform admins can add more without a redeploy:
+
+| Endpoint | What it does |
+|---|---|
+| `POST /admin/buildings` `{"code", "name", "latitude", "longitude"}` | Add a building (code stored uppercase) |
+| `PATCH /admin/buildings/{code}` | Rename or move a building added this way |
+| `DELETE /admin/buildings/{code}` | Delete it; events, classes and groups there keep existing without a building |
+
+Fixture buildings answer 409 to PATCH/DELETE. Removing a building from the fixture doesn't delete it from an existing database; delete it with the endpoint. Buildings added through the API are lost on `python -m app.seed --reset`; put permanent ones in the fixture.
+
 **Platform admins** are the emails in `ADMIN_EMAILS` plus the permanent super admins in `app/core/config.py` (`SUPER_ADMINS`: `n.salazars@uniandes.edu.co`, `c.castilla@uniandes.edu.co`), who keep access whatever the `.env` says.
 
 To delete a catalog group, remove it from the file, redeploy, then call `DELETE /admin/groups/{id}`.
@@ -154,6 +166,12 @@ Notifications are always stored in the in-app inbox. To also push them to phones
 1. Download a service-account key (Firebase console → Project settings → Service accounts).
 2. Save it as `secrets/firebase-service-account.json` (git-ignored).
 3. Set `PUSH_PROVIDER=fcm` and `FIREBASE_CREDENTIALS_PATH=/code/secrets/firebase-service-account.json` (Docker) or the local path (Option B).
+
+## Group cover photos
+
+Group admins upload a cover with `POST /groups/{id}/cover` (multipart field `file`: JPEG, PNG or WebP, up to `MAX_UPLOAD_MB`). The backend re-encodes it as a JPEG of at most 1600 px **without metadata** (phone photos carry the GPS position), stores it under `MEDIA_ROOT` and sets the group's `image_url` to `/media/groups/{id}/cover-....jpg`, served by the API. The apps resolve that path against the API's address.
+
+In Docker the files live in the `media` volume, next to the database: they survive restarts and rebuilds, and `docker compose down -v` deletes them.
 
 ## Business questions
 

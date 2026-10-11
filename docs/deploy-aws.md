@@ -171,6 +171,7 @@ alias dc='docker compose -f docker-compose.prod.yml'
 | Restart after editing `.env` | `dc up -d` |
 | Status | `dc ps` |
 | Database backup | `dc exec -T db pg_dump -U senecapp senecapp \| gzip > backup-$(date +%F).sql.gz` |
+| Photos backup | `docker run --rm -v senecapp-backend_media:/media -v $PWD:/out alpine tar czf /out/media-$(date +%F).tgz -C /media .` |
 | Regenerate demo data (wipes everything) | `dc exec -e APP_ENV=maintenance api python -m app.seed --reset` |
 | Stop (keep data) | `dc down` |
 

@@ -5,6 +5,7 @@ from pathlib import Path
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
 
 from app.api.router import api_router
 from app.core.config import get_settings
@@ -45,6 +46,11 @@ def create_app() -> FastAPI:
         return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail})
 
     app.include_router(api_router, prefix=settings.api_v1_prefix)
+
+    # Uploaded photos (group covers). On the server this directory is a Docker volume.
+    media_root = Path(settings.media_root)
+    media_root.mkdir(parents=True, exist_ok=True)
+    app.mount("/media", StaticFiles(directory=media_root), name="media")
 
     @app.get("/dashboard", include_in_schema=False)
     def dashboard() -> FileResponse:

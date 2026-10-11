@@ -33,9 +33,12 @@ services:
     volumes:
       # Firebase service-account key for push notifications (optional, git-ignored).
       - ./secrets:/code/secrets:ro
+      # Uploaded photos (group covers), kept across restarts and rebuilds.
+      - media:/code/media
     depends_on:
       db:
         condition: service_healthy
 
 volumes:
   pgdata:
+  media:

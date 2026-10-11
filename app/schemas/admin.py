@@ -95,3 +95,22 @@ class AdminGroupRead(BaseModel):
     pending_admin_emails: list[str]
     # Listed in app/seed/fixtures/student_groups.json (re-created on every start).
     from_catalog: bool
+
+
+class BuildingIn(BaseModel):
+    """A campus building (platform admins)."""
+
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+
+    code: str = Field(min_length=1, max_length=20, pattern=r"^[A-Za-z0-9_-]+$")
+    name: str = Field(min_length=2, max_length=150)
+    latitude: float = Field(ge=-90, le=90)
+    longitude: float = Field(ge=-180, le=180)
+
+
+class BuildingUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+
+    name: str | None = Field(default=None, min_length=2, max_length=150)
+    latitude: float | None = Field(default=None, ge=-90, le=90)
+    longitude: float | None = Field(default=None, ge=-180, le=180)

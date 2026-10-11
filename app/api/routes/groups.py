@@ -1,9 +1,10 @@
 import uuid
 from typing import Annotated
 
-from fastapi import APIRouter, Query, Response, status
+from fastapi import APIRouter, File, Query, Response, UploadFile, status
 
 from app.api.deps import ClientCtx, CurrentUser, DbSession
+from app.core.config import get_settings
 from app.models import EntryPoint, GroupAdminRequest, User
 from app.schemas.common import Page
 from app.schemas.group import (
@@ -185,3 +186,19 @@ def _request_read(request: GroupAdminRequest, requester: User) -> AdminRequestRe
         created_at=request.created_at,
         decided_at=request.decided_at,
     )
+
+
+@router.post("/{group_id}/cover")
+def upload_cover(
+    group_id: int,
+    user: CurrentUser,
+    db: DbSession,
+    context: ClientCtx,
+    file: Annotated[UploadFile, File(description="JPEG, PNG or WebP, up to 5 MB")],
+) -> GroupDetail:
+    """Upload a new cover photo (group admins). It's resized, re-encoded as JPEG without
+    metadata, stored on the server and served at ``image_url`` (``/media/...``)."""
+    limit = get_settings().max_upload_mb * 1024 * 1024
+    raw = file.file.read(limit + 1)  # one byte over the limit is enough to reject it
+    group_service.upload_cover(db, user, group_id, raw, context)
+    return group_service.get_group_detail(db, user, group_id, context=context)

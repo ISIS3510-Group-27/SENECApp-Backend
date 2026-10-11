@@ -42,6 +42,12 @@ class Settings(BaseSettings):
     # Firebase service-account JSON (required for PUSH_PROVIDER=fcm). Keep it out of git.
     firebase_credentials_path: str | None = None
 
+    # --- Uploaded media (group cover photos) ---
+    # "local": files are saved under MEDIA_ROOT and served by the API at /media.
+    media_storage: Literal["local"] = "local"
+    media_root: str = "media"
+    max_upload_mb: int = 5
+
     # --- Campus ---
     # Local time zone for class schedules and "free time" calculations.
     campus_timezone: str = "America/Bogota"
