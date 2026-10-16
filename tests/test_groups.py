@@ -117,7 +117,7 @@ def test_join_leave_and_rejoin(client: TestClient, db_session: Session) -> None:
     assert len(memberships) == 1
     assert memberships[0].status == MembershipStatus.ACTIVE
     my_groups = client.get("/api/v1/me/groups", headers=STUDENT).json()
-    assert [g["name"] for g in my_groups] == ["Runners Club"]
+    assert [(g["name"], g["my_role"]) for g in my_groups] == [("Runners Club", "member")]
     assert len(_events(db_session, "group_joined")) == 2
 
 

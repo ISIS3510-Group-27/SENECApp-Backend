@@ -160,8 +160,8 @@ def test_pending_group_is_only_visible_to_its_creator(client: TestClient) -> Non
     assert client.get(url, headers=STUDENT).status_code == 404
     assert client.put(f"{url}/save", headers=STUDENT).status_code == 404
     my_groups = client.get("/api/v1/me/groups", headers=CREATOR).json()
-    assert [(g["name"], g["review_status"]) for g in my_groups] == [
-        ("Ciberseguridad Uniandes", "pending")
+    assert [(g["name"], g["review_status"], g["my_role"]) for g in my_groups] == [
+        ("Ciberseguridad Uniandes", "pending", "admin")
     ]
     for headers in (CREATOR, STUDENT):
         search = client.get("/api/v1/groups", headers=headers, params={"q": "Ciberseguridad"})

@@ -63,6 +63,8 @@ class GroupSummary(BaseModel):
     next_event: NextEvent | None
     is_member: bool
     is_saved: bool
+    # "admin" | "member" for the caller's active membership, else None.
+    my_role: str | None = None
 
 
 class GroupDetail(GroupSummary):
@@ -72,7 +74,6 @@ class GroupDetail(GroupSummary):
     website_url: str | None
     meeting_building: BuildingRead | None
     upcoming_events: list[EventSummary]
-    my_role: str | None
     # "pending" while the student's own request to become admin waits for an answer.
     admin_request_status: str | None = None
     # For the group's admins: how many members are waiting for an answer.

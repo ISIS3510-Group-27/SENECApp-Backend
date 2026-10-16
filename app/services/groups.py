@@ -205,14 +205,15 @@ def build_summaries(db: Session, user: User, group_ids: Sequence[int]) -> list[G
             .ext(distinct_on(Event.group_id))
         )
     }
-    member_of = set(
-        db.scalars(
-            select(Membership.group_id).where(
+    # The caller's role in each group they belong to.
+    member_of = dict(
+        db.execute(
+            select(Membership.group_id, Membership.role).where(
                 Membership.user_id == user.id,
                 Membership.group_id.in_(group_ids),
                 Membership.status == MembershipStatus.ACTIVE,
             )
-        )
+        ).all()
     )
     saved = set(
         db.scalars(
@@ -223,7 +224,7 @@ def build_summaries(db: Session, user: User, group_ids: Sequence[int]) -> list[G
     )
     return [
         _summary(
-            groups[gid], counts.get(gid, 0), next_events.get(gid), gid in member_of, gid in saved
+            groups[gid], counts.get(gid, 0), next_events.get(gid), member_of.get(gid), gid in saved
         )
         for gid in group_ids
         if gid in groups
@@ -234,7 +235,7 @@ def _summary(
     group: StudentGroup,
     member_count: int,
     next_event: Event | None,
-    is_member: bool,
+    my_role: MembershipRole | None,
     is_saved: bool,
 ) -> GroupSummary:
     return GroupSummary(
@@ -255,8 +256,9 @@ def _summary(
             if next_event
             else None
         ),
-        is_member=is_member,
+        is_member=my_role is not None,
         is_saved=is_saved,
+        my_role=my_role.value if my_role else None,
     )
 
 
@@ -317,7 +319,6 @@ def get_group_detail(
             BuildingRead.model_validate(group.meeting_building) if group.meeting_building else None
         ),
         upcoming_events=[EventSummary.model_validate(e) for e in upcoming],
-        my_role=membership.role.value if membership else None,
         admin_request_status=(
             "pending"
             if membership
