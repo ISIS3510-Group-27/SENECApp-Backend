@@ -6,5 +6,6 @@
     { "code": "LL", "name": "Edificio Lleras", "latitude": 4.602474, "longitude": -74.065131 },
     { "code": "B", "name": "Bloque B", "latitude": 4.601481, "longitude": -74.066390 },
     { "code": "C", "name": "Bloque C", "latitude": 4.602227, "longitude": -74.066127 },
-    { "code": "CD", "name": "Centro Deportivo", "latitude": 4.600093, "longitude": -74.062675 }
+    { "code": "CD", "name": "Centro Deportivo", "latitude": 4.600093, "longitude": -74.062675 },
+    { "code": "RGD", "name": "Centro Cívico Universitario (Bloque RGD)", "latitude": 4.603200, "longitude": -74.066300 }
 ]

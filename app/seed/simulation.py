@@ -160,7 +160,7 @@ CLASS_SLOTS = [
     time(16),
     time(17, 30),
 ]
-CLASS_BUILDINGS = {"ML": 3, "SD": 2.5, "W": 2, "AU": 2, "LL": 1.5, "B": 1, "G": 1, "C": 1}
+CLASS_BUILDINGS = {"ML": 3, "SD": 2.5, "W": 2, "AU": 2, "LL": 1.5, "B": 1, "RGD": 1, "C": 1}
 MEETING_TIMES = [time(12, 30), time(16), time(17, 30), time(18, 30), time(11, 30)]
 
 # Telemetry --------------------------------------------------------------------------------

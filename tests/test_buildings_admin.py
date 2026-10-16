@@ -9,22 +9,22 @@ from tests.factories import group_by_name, make_event
 
 ADMIN = auth_header("admin@uniandes.edu.co")
 STUDENT = auth_header("student@uniandes.edu.co")
-NEW = {"code": "rgd", "name": "Edificio RGD", "latitude": 4.6031, "longitude": -74.0662}
+NEW = {"code": "tx", "name": "Edificio temporal", "latitude": 4.6031, "longitude": -74.0662}
 
 
 def test_admin_adds_edits_and_deletes_a_building(client: TestClient, db_session: Session) -> None:
     created = client.post("/api/v1/admin/buildings", headers=ADMIN, json=NEW)
     duplicate = client.post("/api/v1/admin/buildings", headers=ADMIN, json=NEW)
     renamed = client.patch(
-        "/api/v1/admin/buildings/RGD", headers=ADMIN, json={"name": "Edificio Richard"}
+        "/api/v1/admin/buildings/TX", headers=ADMIN, json={"name": "Edificio provisional"}
     )
     listed = {b["code"] for b in client.get("/api/v1/buildings").json()}
 
     assert created.status_code == 201
-    assert created.json()["code"] == "RGD"
+    assert created.json()["code"] == "TX"
     assert duplicate.status_code == 409
-    assert renamed.json()["name"] == "Edificio Richard"
-    assert "RGD" in listed
+    assert renamed.json()["name"] == "Edificio provisional"
+    assert "TX" in listed
 
     # An event there keeps existing, without a building, after the delete.
     event = make_event(
@@ -34,10 +34,10 @@ def test_admin_adds_edits_and_deletes_a_building(client: TestClient, db_session:
         building_id=created.json()["id"],
     )
     db_session.commit()
-    assert client.delete("/api/v1/admin/buildings/rgd", headers=ADMIN).status_code == 204
+    assert client.delete("/api/v1/admin/buildings/tx", headers=ADMIN).status_code == 204
     db_session.expire_all()
     assert db_session.get(Event, event.id).building_id is None
-    assert "RGD" not in {b["code"] for b in client.get("/api/v1/buildings").json()}
+    assert "TX" not in {b["code"] for b in client.get("/api/v1/buildings").json()}
 
 
 def test_fixture_buildings_are_edited_in_the_file(client: TestClient) -> None:
