@@ -3,7 +3,7 @@ from typing import Annotated
 from fastapi import APIRouter, Query
 
 from app.api.deps import CurrentUser, DbSession
-from app.schemas.insights import Audience, BestTimes
+from app.schemas.insights import Audience, BestTimes, ProfileTips
 from app.services import insights as insight_service
 
 router = APIRouter(prefix="/groups", tags=["leader insights"])
@@ -28,3 +28,13 @@ def get_audience(
     days: Annotated[int, Query(ge=7, le=365)] = 90,
 ) -> Audience:
     return insight_service.audience(db, user, group_id, days)
+
+
+@router.get("/{group_id}/insights/profile")
+def get_profile_tips(
+    group_id: int,
+    user: CurrentUser,
+    db: DbSession,
+    days: Annotated[int, Query(ge=7, le=365)] = 90,
+) -> ProfileTips:
+    return insight_service.profile_tips(db, user, group_id, days)

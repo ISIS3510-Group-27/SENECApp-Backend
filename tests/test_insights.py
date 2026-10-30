@@ -8,6 +8,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models import (
+    AnalyticsEvent,
     Attendance,
     CampusBuilding,
     CheckInMethod,
@@ -103,9 +104,11 @@ def test_insights_are_for_group_admins_only(client: TestClient, group: StudentGr
 
     best = client.get(f"/api/v1/groups/{group.id}/insights/best-times", headers=member)
     audience = client.get(f"/api/v1/groups/{group.id}/insights/audience", headers=member)
+    profile = client.get(f"/api/v1/groups/{group.id}/insights/profile", headers=member)
 
     assert best.status_code == 403
     assert audience.status_code == 403
+    assert profile.status_code == 403
 
 
 def test_audience_answers_bq3_with_buildings(
@@ -146,3 +149,69 @@ def test_audience_answers_bq3_with_buildings(
     assert best["building"]["code"] == busy.code
     assert best["interaction_rate"] == pytest.approx(0.6)
     assert body["by_building"][0]["building"]["name"] == busy.name
+
+
+def _profile_view(
+    db: Session, group: StudentGroup, viewer: User, profile: dict[str, bool], saved: bool
+) -> None:
+    viewed_at = datetime.now(UTC) - timedelta(days=1)
+    db.add(
+        AnalyticsEvent(
+            name="group_viewed",
+            source="server",
+            user_id=viewer.id,
+            occurred_at=viewed_at,
+            properties={"group_id": group.id, "is_member": False, "profile": profile},
+        )
+    )
+    if saved:
+        db.add(
+            AnalyticsEvent(
+                name="group_saved",
+                source="server",
+                user_id=viewer.id,
+                occurred_at=viewed_at + timedelta(hours=1),
+                properties={"group_id": group.id},
+            )
+        )
+
+
+def test_profile_tips_rank_missing_fields_by_bq4_correlation(
+    client: TestClient, db_session: Session, group: StudentGroup
+) -> None:
+    group.image_url = None
+    group.instagram_url = "https://instagram.com/tennis"
+    db_session.commit()
+    for i in range(20):
+        viewer = make_user(db_session, f"profile.viewer{i}@uniandes.edu.co")
+        with_image = i < 10
+        _profile_view(
+            db_session, group, viewer, {"has_image": with_image, "has_website": False}, with_image
+        )
+    db_session.commit()
+
+    response = client.get(f"/api/v1/groups/{group.id}/insights/profile", headers=LEADER)
+
+    body = response.json()
+    assert response.status_code == 200
+    assert "group profile" in body["question"]
+    assert body["total"] == 7
+    assert body["filled"] == sum(f["filled"] for f in body["fields"])
+    first = body["fields"][0]
+    assert first["field"] == "has_image"
+    assert first["filled"] is False
+    assert first["correlation"] == pytest.approx(1.0)
+    assert first["conversion_with"] == pytest.approx(1.0)
+    instagram = next(f for f in body["fields"] if f["field"] == "has_instagram")
+    assert instagram["filled"] is True
+
+
+def test_profile_tips_list_every_field_without_views(
+    client: TestClient, group: StudentGroup
+) -> None:
+    response = client.get(f"/api/v1/groups/{group.id}/insights/profile", headers=LEADER)
+
+    body = response.json()
+    assert response.status_code == 200
+    assert body["total"] == 7
+    assert all(f["views"] == 0 and f["correlation"] is None for f in body["fields"])
