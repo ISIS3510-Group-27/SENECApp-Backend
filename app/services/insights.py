@@ -4,7 +4,12 @@ from datetime import UTC, date, datetime, time, timedelta
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.analytics.questions import QUESTIONS, Params, bq3_free_block_event_interactions
+from app.analytics.questions import (
+    QUESTIONS,
+    Params,
+    bq3_free_block_event_interactions,
+    bq4_profile_fields,
+)
 from app.models import (
     Attendance,
     CampusBuilding,
@@ -16,9 +21,16 @@ from app.models import (
     User,
 )
 from app.schemas.catalog import BuildingRead
-from app.schemas.insights import Audience, AudienceCell, BestTimes, SuggestedSlot
+from app.schemas.insights import (
+    Audience,
+    AudienceCell,
+    BestTimes,
+    ProfileField,
+    ProfileTips,
+    SuggestedSlot,
+)
 from app.services.errors import NotFoundError
-from app.services.groups import require_group_admin
+from app.services.groups import profile_completeness, require_group_admin
 from app.services.schedule import DAY_END, DAY_START, campus_tz
 
 STEP_MINUTES = 30
@@ -26,6 +38,15 @@ WEEKDAYS = range(6)
 HISTORY_DAYS = 120
 PRIOR_WEIGHT = 2.0
 ATTENDANCE_WEIGHT = 0.25
+PROFILE_TIP_FIELDS = (
+    "has_image",
+    "has_contact_email",
+    "has_instagram",
+    "has_website",
+    "has_meeting_building",
+    "has_founded_year",
+    "has_upcoming_event",
+)
 
 
 def best_times(
@@ -147,6 +168,43 @@ def audience(db: Session, user: User, group_id: int, days: int) -> Audience:
         best_time_and_place=[cell(r) for r in data["best_time_and_place"] if r["building"]],
         by_hour=[cell(r) for r in data["by_hour"]],
         by_building=[cell(r) for r in by_building if r["building"] != "unknown"][:8],
+    )
+
+
+def profile_tips(db: Session, user: User, group_id: int, days: int) -> ProfileTips:
+    group = _get_group(db, group_id)
+    require_group_admin(db, user, group_id)
+    until = datetime.now(UTC)
+    data, answer = bq4_profile_fields(db, Params(since=until - timedelta(days=days), until=until))
+    upcoming = db.scalar(
+        select(func.count(Event.id)).where(
+            Event.group_id == group_id, Event.starts_at > until, ~Event.is_cancelled
+        )
+    )
+    mine = profile_completeness(group, has_upcoming_event=bool(upcoming))
+    evidence = {row["field"]: row for row in data["fields"]}
+    fields = []
+    for name in PROFILE_TIP_FIELDS:
+        row = evidence.get(name, {})
+        fields.append(
+            ProfileField(
+                field=name,
+                filled=bool(mine[name]),
+                views=row.get("views", 0),
+                correlation=row.get("correlation"),
+                lift=row.get("lift"),
+                conversion_with=row.get("conversion_with"),
+                conversion_without=row.get("conversion_without"),
+            )
+        )
+    fields.sort(key=lambda f: (f.filled, -(f.correlation or 0)))
+    return ProfileTips(
+        question=QUESTIONS["4"].question,
+        answer=answer,
+        days=days,
+        filled=sum(f.filled for f in fields),
+        total=len(fields),
+        fields=fields,
     )
 
 

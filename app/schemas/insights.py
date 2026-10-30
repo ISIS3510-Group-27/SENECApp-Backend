@@ -39,3 +39,22 @@ class Audience(BaseModel):
     best_time_and_place: list[AudienceCell]
     by_hour: list[AudienceCell]
     by_building: list[AudienceCell]
+
+
+class ProfileField(BaseModel):
+    field: str
+    filled: bool
+    views: int
+    correlation: float | None
+    lift: float | None
+    conversion_with: float | None
+    conversion_without: float | None
+
+
+class ProfileTips(BaseModel):
+    question: str
+    answer: str
+    days: int
+    filled: int
+    total: int
+    fields: list[ProfileField]
