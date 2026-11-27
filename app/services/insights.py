@@ -10,6 +10,7 @@ from app.analytics.questions import (
     bq3_free_block_event_interactions,
     bq4_profile_fields,
     bq6_entry_points,
+    bq10_declining_groups,
     entry_point_counts,
 )
 from app.models import (
@@ -18,6 +19,7 @@ from app.models import (
     Event,
     Membership,
     MembershipStatus,
+    ReengagementCase,
     ScheduleBlock,
     StudentGroup,
     User,
@@ -27,12 +29,17 @@ from app.schemas.insights import (
     Audience,
     AudienceCell,
     BestTimes,
+    GroupHealth,
+    HealthCase,
+    HealthWeek,
     JoinSource,
     JoinSources,
     ProfileField,
     ProfileTips,
+    ReengagementRate,
     SuggestedSlot,
 )
+from app.services import reengagement
 from app.services.errors import NotFoundError
 from app.services.groups import profile_completeness, require_group_admin
 from app.services.schedule import DAY_END, DAY_START, campus_tz
@@ -217,6 +224,49 @@ def profile_tips(db: Session, user: User, group_id: int, days: int) -> ProfileTi
         filled=sum(f.filled for f in fields),
         total=len(fields),
         fields=fields,
+    )
+
+
+def group_health(db: Session, user: User, group_id: int) -> GroupHealth:
+    _get_group(db, group_id)
+    require_group_admin(db, user, group_id)
+    now = datetime.now(UTC)
+    series = reengagement.weekly_attendance(db, [group_id], now)[group_id]
+    declining, baseline, decline = reengagement.is_declining(series)
+    recent = sum(series[4:]) / 4
+    count = len(series)
+    weeks = [
+        HealthWeek(week_start=now - (count - index) * reengagement.WEEK, attendance=value)
+        for index, value in enumerate(series)
+    ]
+    latest = db.scalars(
+        select(ReengagementCase)
+        .where(ReengagementCase.group_id == group_id)
+        .order_by(ReengagementCase.detected_at.desc())
+        .limit(1)
+    ).first()
+    case = None
+    if latest is not None:
+        summary = reengagement.case_summary(db, latest, now)
+        case = HealthCase(
+            arm=summary["arm"],
+            status=summary["status"],
+            detected_at=summary["detected_at"],
+            lapsed_members=summary["lapsed_members"],
+            returned_members=summary["returned_members"],
+            return_rate=summary["return_rate"],
+        )
+    data, answer = bq10_declining_groups(db, Params(since=now - timedelta(days=365), until=now))
+    return GroupHealth(
+        question=QUESTIONS["10"].question,
+        answer=answer,
+        weeks=weeks,
+        baseline=round(baseline, 2),
+        recent=round(recent, 2),
+        decline_pct=decline,
+        declining=declining,
+        case=case,
+        arms=[ReengagementRate(**arm) for arm in data["arms"]],
     )
 
 

@@ -60,6 +60,40 @@ class ProfileTips(BaseModel):
     fields: list[ProfileField]
 
 
+class HealthWeek(BaseModel):
+    week_start: datetime
+    attendance: int
+
+
+class HealthCase(BaseModel):
+    arm: str
+    status: str
+    detected_at: datetime
+    lapsed_members: int
+    returned_members: int
+    return_rate: float | None
+
+
+class ReengagementRate(BaseModel):
+    arm: str
+    groups: int
+    lapsed: int
+    returned: int
+    return_to_attendance_rate: float | None
+
+
+class GroupHealth(BaseModel):
+    question: str
+    answer: str
+    weeks: list[HealthWeek]
+    baseline: float
+    recent: float
+    decline_pct: float
+    declining: bool
+    case: HealthCase | None
+    arms: list[ReengagementRate]
+
+
 class JoinSource(BaseModel):
     entry_point: str
     views: int
