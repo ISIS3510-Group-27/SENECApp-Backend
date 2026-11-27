@@ -9,6 +9,8 @@ from app.analytics.questions import (
     Params,
     bq3_free_block_event_interactions,
     bq4_profile_fields,
+    bq6_entry_points,
+    entry_point_counts,
 )
 from app.models import (
     Attendance,
@@ -25,6 +27,8 @@ from app.schemas.insights import (
     Audience,
     AudienceCell,
     BestTimes,
+    JoinSource,
+    JoinSources,
     ProfileField,
     ProfileTips,
     SuggestedSlot,
@@ -47,6 +51,14 @@ PROFILE_TIP_FIELDS = (
     "has_founded_year",
     "has_upcoming_event",
 )
+ENTRY_POINT_LABELS = {
+    "recommendation": "recommendations",
+    "search": "search and filters",
+    "explore": "browsing Explore",
+    "notification": "notifications",
+    "event": "event pages",
+    "direct": "direct links and My RSOs",
+}
 
 
 def best_times(
@@ -206,6 +218,54 @@ def profile_tips(db: Session, user: User, group_id: int, days: int) -> ProfileTi
         total=len(fields),
         fields=fields,
     )
+
+
+def join_sources(db: Session, user: User, group_id: int, days: int) -> JoinSources:
+    """BQ6 for one group: which entry points bring this group its joins, next to the
+    campus-wide view-to-join rate of each entry point."""
+    _get_group(db, group_id)
+    require_group_admin(db, user, group_id)
+    until = datetime.now(UTC)
+    params = Params(since=until - timedelta(days=days), until=until)
+    mine = entry_point_counts(db, params, group_id=group_id)
+    campus_data, campus_answer = bq6_entry_points(db, params)
+    campus = {r["entry_point"]: r["view_to_join_rate"] for r in campus_data["entry_points"]}
+    joins = sum(r["joins"] for r in mine)
+    sources = [
+        JoinSource(
+            entry_point=r["entry_point"],
+            views=r["profile_views"],
+            joins=r["joins"],
+            view_to_join_rate=r["view_to_join_rate"],
+            share_of_joins=round(r["joins"] / joins, 4) if joins else None,
+            campus_view_to_join_rate=campus.get(r["entry_point"]),
+        )
+        for r in mine
+    ]
+    return JoinSources(
+        question=QUESTIONS["6"].question,
+        answer=_join_sources_answer(sources, joins),
+        campus_answer=campus_answer,
+        days=days,
+        views=sum(s.views for s in sources),
+        joins=joins,
+        sources=sources,
+    )
+
+
+def _join_sources_answer(sources: list[JoinSource], joins: int) -> str:
+    if not joins:
+        return "No student has joined from the app in this period yet."
+    top = sources[0]
+    label = ENTRY_POINT_LABELS.get(top.entry_point, top.entry_point)
+    share = round((top.share_of_joins or 0) * 100)
+    answer = f"Most of your joins come from {label} ({top.joins} of {joins}, {share}%)."
+    rec = next((s for s in sources if s.entry_point == "recommendation"), None)
+    search = next((s for s in sources if s.entry_point == "search"), None)
+    if rec and search and rec.joins != search.joins:
+        better = "Recommendations" if rec.joins > search.joins else "Search and filters"
+        answer += f" {better} bring you more joins than the other entry point."
+    return answer
 
 
 class _Rates:
