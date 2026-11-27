@@ -215,3 +215,66 @@ def test_profile_tips_list_every_field_without_views(
     assert response.status_code == 200
     assert body["total"] == 7
     assert all(f["views"] == 0 and f["correlation"] is None for f in body["fields"])
+
+
+def _entry(db: Session, name: str, group: StudentGroup, viewer: User, entry_point: str) -> None:
+    db.add(
+        AnalyticsEvent(
+            name=name,
+            source="server",
+            user_id=viewer.id,
+            occurred_at=datetime.now(UTC) - timedelta(days=2),
+            properties={"group_id": group.id, "entry_point": entry_point},
+        )
+    )
+
+
+def test_join_sources_answer_bq6_for_one_group(
+    client: TestClient, db_session: Session, group: StudentGroup
+) -> None:
+    other = group_by_name(db_session, "Emprendedores Uniandes")
+    for i in range(6):
+        viewer = make_user(db_session, f"source.viewer{i}@uniandes.edu.co")
+        source = "recommendation" if i < 4 else "search"
+        _entry(db_session, "group_viewed", group, viewer, source)
+        if i in (0, 1, 2, 4):
+            _entry(db_session, "group_joined", group, viewer, source)
+        # Another group's traffic must not leak into this group's answer.
+        _entry(db_session, "group_viewed", other, viewer, "search")
+        _entry(db_session, "group_joined", other, viewer, "search")
+    db_session.commit()
+
+    response = client.get(f"/api/v1/groups/{group.id}/insights/join-sources", headers=LEADER)
+
+    body = response.json()
+    assert response.status_code == 200
+    assert "entry point" in body["question"]
+    assert (body["views"], body["joins"]) == (6, 4)
+    first, second = body["sources"]
+    assert first["entry_point"] == "recommendation"
+    assert (first["views"], first["joins"]) == (4, 3)
+    assert first["view_to_join_rate"] == pytest.approx(0.75)
+    assert first["share_of_joins"] == pytest.approx(0.75)
+    assert second["entry_point"] == "search"
+    # Campus-wide search includes the other group's 6 views and 6 joins.
+    assert second["campus_view_to_join_rate"] == pytest.approx(7 / 8)
+    assert "recommendations" in body["answer"]
+    assert body["campus_answer"]
+
+
+def test_join_sources_without_joins(client: TestClient, group: StudentGroup) -> None:
+    response = client.get(f"/api/v1/groups/{group.id}/insights/join-sources", headers=LEADER)
+
+    body = response.json()
+    assert response.status_code == 200
+    assert body["joins"] == 0
+    assert body["sources"] == []
+    assert "No student" in body["answer"]
+
+
+def test_join_sources_are_for_group_admins_only(client: TestClient, group: StudentGroup) -> None:
+    response = client.get(
+        f"/api/v1/groups/{group.id}/insights/join-sources", headers=auth_header(MEMBER_EMAIL)
+    )
+
+    assert response.status_code == 403

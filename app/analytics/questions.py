@@ -497,7 +497,12 @@ def bq4_profile_fields(db: Session, p: Params) -> Result:
     )
 
 
-def bq6_entry_points(db: Session, p: Params) -> Result:
+def entry_point_counts(db: Session, p: Params, group_id: int | None = None) -> list[dict[str, Any]]:
+    """Profile views and joins per entry point (BQ6), campus-wide or for one group.
+
+    Shared by the BQ6 dashboard answer and the leader endpoint
+    ``GET /groups/{id}/insights/join-sources``, so both always count the same way.
+    """
     rows = _rows(
         db,
         """
@@ -507,12 +512,18 @@ def bq6_entry_points(db: Session, p: Params) -> Result:
         FROM analytics_events
         WHERE name IN ('group_viewed', 'group_joined')
           AND occurred_at >= :since AND occurred_at < :until
-        GROUP BY 1 ORDER BY joins DESC
+          AND (CAST(:group_id AS int) IS NULL OR (properties->>'group_id')::int = :group_id)
+        GROUP BY 1 ORDER BY joins DESC, profile_views DESC
         """,
-        p.sql,
+        {**p.sql, "group_id": group_id},
     )
     for row in rows:
         row["view_to_join_rate"] = _rate(row["joins"], row["profile_views"])
+    return rows
+
+
+def bq6_entry_points(db: Session, p: Params) -> Result:
+    rows = entry_point_counts(db, p)
     by_entry = {r["entry_point"]: r for r in rows}
     rec, search = by_entry.get("recommendation"), by_entry.get("search")
     if not rec or not search:

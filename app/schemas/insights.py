@@ -58,3 +58,22 @@ class ProfileTips(BaseModel):
     filled: int
     total: int
     fields: list[ProfileField]
+
+
+class JoinSource(BaseModel):
+    entry_point: str
+    views: int
+    joins: int
+    view_to_join_rate: float | None
+    share_of_joins: float | None
+    campus_view_to_join_rate: float | None
+
+
+class JoinSources(BaseModel):
+    question: str
+    answer: str
+    campus_answer: str
+    days: int
+    views: int
+    joins: int
+    sources: list[JoinSource]

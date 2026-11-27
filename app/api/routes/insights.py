@@ -3,7 +3,7 @@ from typing import Annotated
 from fastapi import APIRouter, Query
 
 from app.api.deps import CurrentUser, DbSession
-from app.schemas.insights import Audience, BestTimes, ProfileTips
+from app.schemas.insights import Audience, BestTimes, JoinSources, ProfileTips
 from app.services import insights as insight_service
 
 router = APIRouter(prefix="/groups", tags=["leader insights"])
@@ -38,3 +38,14 @@ def get_profile_tips(
     days: Annotated[int, Query(ge=7, le=365)] = 90,
 ) -> ProfileTips:
     return insight_service.profile_tips(db, user, group_id, days)
+
+
+@router.get("/{group_id}/insights/join-sources")
+def get_join_sources(
+    group_id: int,
+    user: CurrentUser,
+    db: DbSession,
+    days: Annotated[int, Query(ge=7, le=365)] = 90,
+) -> JoinSources:
+    """BQ6 for group leaders: which entry points bring this group its joins."""
+    return insight_service.join_sources(db, user, group_id, days)
