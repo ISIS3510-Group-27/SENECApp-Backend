@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict, Field, HttpUrl
+from pydantic import BaseModel, ConfigDict, Field, HttpUrl, field_validator
 
 from app.models import User
 from app.schemas.catalog import InterestRead
@@ -48,6 +48,13 @@ class UserUpdate(BaseModel):
     avatar_url: HttpUrl | None = None
     location_opt_in: bool | None = None
     notifications_opt_in: bool | None = None
+
+    @field_validator("full_name", "location_opt_in", "notifications_opt_in")
+    @classmethod
+    def reject_null(cls, value):
+        if value is None:
+            raise ValueError("This field cannot be null")
+        return value
 
 
 class InterestsUpdate(BaseModel):

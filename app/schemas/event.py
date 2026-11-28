@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from app.schemas.catalog import BuildingRead
 
@@ -61,6 +61,13 @@ class EventUpdate(BaseModel):
     location_detail: str | None = Field(default=None, max_length=200)
     capacity: int | None = Field(default=None, ge=1)
     is_cancelled: bool | None = None
+
+    @field_validator("title", "is_cancelled")
+    @classmethod
+    def reject_null(cls, value):
+        if value is None:
+            raise ValueError("This field cannot be null")
+        return value
 
 
 class CheckInCode(BaseModel):
