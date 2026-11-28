@@ -51,7 +51,9 @@ def list_events(
 ) -> tuple[list[EventRead], int]:
     """Upcoming (by default) non-cancelled events of approved groups, soonest first."""
     stmt = select(Event.id).where(
-        ~Event.is_cancelled, Event.group.has(StudentGroup.review_status == ReviewStatus.APPROVED)
+        ~Event.is_cancelled,
+        Event.group.has(StudentGroup.review_status == ReviewStatus.APPROVED),
+        Event.group.has(StudentGroup.is_active),
     )
     stmt = stmt.where(Event.ends_at >= (starts_after or datetime.now(UTC)))
     if starts_before:
@@ -222,11 +224,16 @@ def check_in(
     settings = get_settings()
     now = now or datetime.now(UTC)
     event = db.scalar(
-        select(Event).where(Event.id == event_id).options(selectinload(Event.building))
+        select(Event)
+        .where(Event.id == event_id)
+        .options(selectinload(Event.building))
+        .with_for_update()
     )
     if event is None:
         raise NotFoundError("Event not found")
-    if not secrets.compare_digest(request.code, event.check_in_code):
+    if not secrets.compare_digest(
+        request.code.encode("utf-8"), event.check_in_code.encode("utf-8")
+    ):
         raise ValidationFailedError("Invalid check-in code")
 
     existing = db.scalar(

@@ -154,3 +154,71 @@ def test_free_blocks_between_classes() -> None:
     assert current is not None
     assert current.starts_at == moment
     assert current.minutes == 135
+
+
+def test_invalid_null_updates_and_unicode_code(client, db_session, tennis_admin):
+    event = make_event(db_session, group_by_name(db_session, "Tennis Uniandes"))
+    db_session.commit()
+    for field in ("title", "is_cancelled"):
+        response = client.patch(f"/api/v1/events/{event.id}", headers=ADMIN, json={field: None})
+        assert response.status_code == 422
+    for field in ("full_name", "location_opt_in", "notifications_opt_in"):
+        assert client.patch("/api/v1/me", headers=ADMIN, json={field: None}).status_code == 422
+    response = client.post(
+        f"/api/v1/events/{event.id}/check-in", headers=STUDENT, json={"code": "código inválido"}
+    )
+    assert response.status_code == 422
+
+
+def test_inactive_group_events_are_hidden(client, db_session):
+    group = group_by_name(db_session, "Tennis Uniandes")
+    event = make_event(db_session, group)
+    group.is_active = False
+    db_session.commit()
+    response = client.get("/api/v1/events", headers=STUDENT)
+    assert response.status_code == 200
+    assert event.id not in [item["id"] for item in response.json()["items"]]
+
+
+def test_concurrent_check_in_is_idempotent(db_engine):
+    from concurrent.futures import ThreadPoolExecutor
+    from threading import Barrier
+
+    from app.schemas.event import CheckInRequest
+    from app.services.events import check_in
+
+    with Session(db_engine) as setup:
+        user = make_user(setup, "concurrent-checkin@uniandes.edu.co")
+        event = make_event(
+            setup, group_by_name(setup, "Tennis Uniandes"), starts_in=timedelta(minutes=1)
+        )
+        setup.commit()
+        user_id, event_id, code = user.id, event.id, event.check_in_code
+    barrier = Barrier(2)
+
+    def attend(_):
+        from app.models import User
+
+        with Session(db_engine) as session:
+            student = session.get(User, user_id)
+            barrier.wait(timeout=10)
+            return check_in(session, student, event_id, CheckInRequest(code=code), None)
+
+    try:
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            results = list(pool.map(attend, range(2)))
+        assert sorted(result.already_checked_in for result in results) == [False, True]
+        with Session(db_engine) as session:
+            assert (
+                len(
+                    session.scalars(select(Attendance).where(Attendance.event_id == event_id)).all()
+                )
+                == 1
+            )
+    finally:
+        from app.models import Event, User
+
+        with Session(db_engine) as session:
+            session.delete(session.get(Event, event_id))
+            session.delete(session.get(User, user_id))
+            session.commit()
